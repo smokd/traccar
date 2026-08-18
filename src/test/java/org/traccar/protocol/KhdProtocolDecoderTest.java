@@ -1,14 +1,32 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
+import org.traccar.model.Position;
 
 public class KhdProtocolDecoderTest extends ProtocolTest {
 
     @Test
     public void testDecode() throws Exception {
 
-        KhdProtocolDecoder decoder = new KhdProtocolDecoder(null);
+        var decoder = inject(new KhdProtocolDecoder(null));
+
+        verifyAttribute(decoder, binary(
+                "2929A300403099934C2004030943310000000000000000000000007B0000007FFF0E0000E70014000000000018050B01303030314330334437312102007B2203140DDA610D"),
+                Position.KEY_DRIVER_UNIQUE_ID, "0001C03D71");
+
+        verifyAttribute(decoder, binary(
+                "2929a3003e1680ba0a2304180759500000000000000000000000007b00000080001914000000000000000000162001641b0b0000249002bc58030001cc46020000e70d"),
+                Position.KEY_BATTERY_LEVEL, 100);
+
+        verifyPosition(decoder, binary(
+                "2929800028258b8c10210731035840031534240542120200000337fb000000ffff5a00000a0000000005005d0d"));
+
+        verifyPosition(decoder, binary(
+                "292980002825863156210105095059035109370460010100000211ffff000002fc0000001e780b12000034e70d"));
+
+        verifyPosition(decoder, binary(
+                "2929a3003420b2ab46201115115601800115110350825100000133fb00df4bfdff0d000000000000000900000c180887d9ffffffffffff960d"));
 
         verifyNull(decoder, binary(
                 "2929b1000605162935b80d"));

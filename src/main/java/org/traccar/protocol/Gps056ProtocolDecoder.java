@@ -19,7 +19,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.DateBuilder;
@@ -50,7 +50,7 @@ public class Gps056ProtocolDecoder extends BaseProtocolDecoder {
 
     private static double decodeCoordinate(ByteBuf buf) {
         double degrees = buf.getUnsignedShort(buf.readerIndex()) / 100;
-        double minutes = buf.readUnsignedShort() % 100 + buf.readUnsignedShort() * 0.0001;
+        double minutes = buf.readUnsignedShort() % 100 + buf.readUnsignedShort() / 10000.0;
         degrees += minutes / 60;
         byte hemisphere = buf.readByte();
         if (hemisphere == 'S' || hemisphere == 'W') {

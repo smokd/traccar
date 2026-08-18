@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2013 - 2024 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,9 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.model.CellTower;
+import org.traccar.model.Network;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.Parser;
@@ -29,6 +31,7 @@ import java.net.SocketAddress;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,15 +41,26 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
         super(protocol);
     }
 
+    private static final Pattern PATTERN_ANY = new PatternBuilder()
+            .number("d.d;").optional()
+            .expression("([^#]+)?")              // imei
+            .text("#")                           // start byte
+            .expression("([^#]+)")               // type
+            .text("#")                           // separator
+            .expression("(.*)")                  // message
+            .compile();
+
+    private static final Pattern PATTERN_PARAM = Pattern.compile("(.*):[1-3]:(.*)");
+
     private static final Pattern PATTERN = new PatternBuilder()
-            .number("(dd)(dd)(dd);")             // date (ddmmyy)
-            .number("(dd)(dd)(dd);")             // time (hhmmss)
-            .number("(dd)(dd.d+);")              // latitude
-            .expression("([NS]);")
-            .number("(ddd)(dd.d+);")             // longitude
-            .expression("([EW]);")
-            .number("(d+.?d*)?;")                // speed
-            .number("(d+.?d*)?;")                // course
+            .number("(?:NA|(dd)(dd)(dd));")      // date (ddmmyy)
+            .number("(?:NA|(dd)(dd)(dd));")      // time (hhmmss)
+            .number("(?:NA|(d+)(dd.d+));")       // latitude
+            .expression("(?:NA|([NS]));")
+            .number("(?:NA|(d+)(dd.d+));")       // longitude
+            .expression("(?:NA|([EW]));")
+            .number("(?:NA|(d+.?d*))?;")         // speed
+            .number("(?:NA|(d+.?d*))?;")         // course
             .number("(?:NA|(-?d+.?d*));")        // altitude
             .number("(?:NA|(d+))")               // satellites
             .groupBegin().text(";")
@@ -55,13 +69,16 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
             .number("(?:NA|(d+));")              // outputs
             .expression("(?:NA|([^;]*));")       // adc
             .expression("(?:NA|([^;]*));")       // ibutton
-            .expression("(?:NA|(.*))")           // params
+            .expression("(?:NA|([^;]*))")        // params
             .groupEnd("?")
+            .any()
             .compile();
 
-    private void sendResponse(Channel channel, SocketAddress remoteAddress, String prefix, Integer number) {
+    private void sendResponse(Channel channel, SocketAddress remoteAddress, String type, Integer number) {
         if (channel != null) {
-            StringBuilder response = new StringBuilder(prefix);
+            StringBuilder response = new StringBuilder("#A");
+            response.append(type);
+            response.append("#");
             if (number != null) {
                 response.append(number);
             }
@@ -70,9 +87,9 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
         }
     }
 
-    private Position decodePosition(Channel channel, SocketAddress remoteAddress, String substring) {
+    private Position decodePosition(Channel channel, SocketAddress remoteAddress, String id, String substring) {
 
-        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
+        DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, id);
         if (deviceSession == null) {
             return null;
         }
@@ -85,13 +102,21 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
         Position position = new Position(getProtocolName());
         position.setDeviceId(deviceSession.getDeviceId());
 
-        position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
+        if (parser.hasNext(6)) {
+            position.setTime(parser.nextDateTime(Parser.DateTimeFormat.DMY_HMS));
+        } else {
+            position.setTime(new Date());
+        }
 
-        position.setLatitude(parser.nextCoordinate());
-        position.setLongitude(parser.nextCoordinate());
-        position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
-        position.setCourse(parser.nextDouble(0));
-        position.setAltitude(parser.nextDouble(0));
+        if (parser.hasNextAny(9)) {
+            position.setLatitude(parser.nextCoordinate());
+            position.setLongitude(parser.nextCoordinate());
+            position.setSpeed(UnitsConverter.knotsFromKph(parser.nextDouble(0)));
+            position.setCourse(parser.nextDouble(0));
+            position.setAltitude(parser.nextDouble(0));
+        } else {
+            getLastLocation(position, position.getDeviceTime());
+        }
 
         if (parser.hasNext()) {
             int satellites = parser.nextInt(0);
@@ -115,18 +140,65 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
         if (parser.hasNext()) {
             String[] values = parser.next().split(",");
             for (String param : values) {
-                Matcher paramParser = Pattern.compile("(.*):[1-3]:(.*)").matcher(param);
+                Matcher paramParser = PATTERN_PARAM.matcher(param);
                 if (paramParser.matches()) {
+                    String key = paramParser.group(1).toLowerCase(Locale.ROOT);
+                    String value = paramParser.group(2);
                     try {
-                        position.set(paramParser.group(1).toLowerCase(), Double.parseDouble(paramParser.group(2)));
+                        position.set(key, Double.parseDouble(value));
                     } catch (NumberFormatException e) {
-                        position.set(paramParser.group(1).toLowerCase(), paramParser.group(2));
+                        if (value.equalsIgnoreCase("true")) {
+                            position.set(key, true);
+                        } else if (value.equalsIgnoreCase("false")) {
+                            position.set(key, false);
+                        } else {
+                            position.set(key, value);
+                        }
                     }
                 }
+            }
+
+            if (position.hasAttribute("accuracy")) {
+                position.setAccuracy(position.removeDouble("accuracy"));
+            }
+
+            if (position.hasAttribute("bat")) {
+                position.set(Position.KEY_BATTERY_LEVEL, position.removeInteger("bat"));
+            }
+
+            if (position.hasAttribute("temp")) {
+                position.set(Position.KEY_DEVICE_TEMP, position.removeInteger("temp"));
+            }
+
+            Network network = new Network();
+            decodeCellData(position, network, "");
+            for (int i = 1; i <= 9; i++) {
+                if (!decodeCellData(position, network, String.valueOf(i))) {
+                    break;
+                }
+            }
+
+            if (network.getCellTowers() != null) {
+                position.setNetwork(network);
             }
         }
 
         return position;
+    }
+
+    private static boolean decodeCellData(Position position, Network network, String suffix) {
+        if (position.hasAttribute("mnc" + suffix)
+                && position.hasAttribute("mcc" + suffix)
+                && position.hasAttribute("lac" + suffix)
+                && position.hasAttribute("cell_id" + suffix)) {
+            network.addCellTower(CellTower.from(
+                    position.removeInteger("mcc" + suffix),
+                    position.removeInteger("mnc" + suffix),
+                    position.removeInteger("lac" + suffix),
+                    position.getLong("cell_id" + suffix)));
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -135,59 +207,76 @@ public class WialonProtocolDecoder extends BaseProtocolDecoder {
 
         String sentence = (String) msg;
 
-        if (sentence.startsWith("#L#")) {
+        Parser parser = new Parser(PATTERN_ANY, sentence);
+        if (!parser.matches()) {
+            return null;
+        }
 
-            String[] values = sentence.substring(3).split(";");
+        String id = parser.next();
+        String type = parser.next();
+        String data = parser.next();
 
-            String imei = values[0].indexOf('.') >= 0 ? values[1] : values[0];
-            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
-            if (deviceSession != null) {
-                sendResponse(channel, remoteAddress, "#AL#", 1);
-            }
+        DeviceSession deviceSession;
+        Position position;
 
-        } else if (sentence.startsWith("#P#")) {
+        switch (type) {
 
-            sendResponse(channel, remoteAddress, "#AP#", null); // heartbeat
-
-        } else if (sentence.startsWith("#SD#") || sentence.startsWith("#D#")) {
-
-            Position position = decodePosition(
-                    channel, remoteAddress, sentence.substring(sentence.indexOf('#', 1) + 1));
-
-            if (position != null) {
-                sendResponse(channel, remoteAddress, "#AD#", 1);
-                return position;
-            }
-
-        } else if (sentence.startsWith("#B#")) {
-
-            String[] messages = sentence.substring(sentence.indexOf('#', 1) + 1).split("\\|");
-            List<Position> positions = new LinkedList<>();
-
-            for (String message : messages) {
-                Position position = decodePosition(channel, remoteAddress, message);
-                if (position != null) {
-                    position.set(Position.KEY_ARCHIVE, true);
-                    positions.add(position);
+            case "L":
+                String[] values = data.split(";");
+                String imei = values[0].indexOf('.') >= 0 ? values[1] : values[0];
+                deviceSession = getDeviceSession(channel, remoteAddress, imei);
+                if (deviceSession != null) {
+                    sendResponse(channel, remoteAddress, type, 1);
                 }
-            }
+                break;
 
-            sendResponse(channel, remoteAddress, "#AB#", messages.length);
-            if (!positions.isEmpty()) {
-                return positions;
-            }
+            case "P":
+                sendResponse(channel, remoteAddress, type, null); // heartbeat
+                break;
 
-        } else if (sentence.startsWith("#M#")) {
-            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress);
-            if (deviceSession != null) {
-                Position position = new Position(getProtocolName());
-                position.setDeviceId(deviceSession.getDeviceId());
-                getLastLocation(position, new Date());
-                position.setValid(false);
-                position.set(Position.KEY_RESULT, sentence.substring(sentence.indexOf('#', 1) + 1));
-                sendResponse(channel, remoteAddress, "#AM#", 1);
-                return position;
-            }
+            case "D":
+            case "SD":
+                position = decodePosition(channel, remoteAddress, id, data);
+                if (position != null) {
+                    sendResponse(channel, remoteAddress, "D", 1);
+                    return position;
+                }
+                break;
+
+            case "B":
+                String[] messages = data.split("\\|");
+                List<Position> positions = new LinkedList<>();
+
+                for (String message : messages) {
+                    position = decodePosition(channel, remoteAddress, id, message);
+                    if (position != null) {
+                        position.set(Position.KEY_ARCHIVE, true);
+                        positions.add(position);
+                    }
+                }
+
+                sendResponse(channel, remoteAddress, type, messages.length);
+                if (!positions.isEmpty()) {
+                    return positions;
+                }
+                break;
+
+            case "M":
+                deviceSession = getDeviceSession(channel, remoteAddress, id);
+                if (deviceSession != null) {
+                    position = new Position(getProtocolName());
+                    position.setDeviceId(deviceSession.getDeviceId());
+                    getLastLocation(position, new Date());
+                    position.setValid(false);
+                    position.set(Position.KEY_RESULT, data);
+                    sendResponse(channel, remoteAddress, type, 1);
+                    return position;
+                }
+                break;
+
+            default:
+                break;
+
         }
 
         return null;

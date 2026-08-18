@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,38 +15,48 @@
  */
 package org.traccar.protocol;
 
+import io.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
 import org.traccar.PipelineBuilder;
 import org.traccar.TrackerServer;
+import org.traccar.config.Config;
 import org.traccar.model.Command;
 
-import io.netty.handler.codec.string.StringEncoder;
+import jakarta.inject.Inject;
 
 public class WondexProtocol extends BaseProtocol {
 
-    public WondexProtocol() {
-        setTextCommandEncoder(new WondexProtocolEncoder());
-        setSupportedCommands(
+    @Inject
+    public WondexProtocol(Config config) {
+        setSupportedDataCommands(
                 Command.TYPE_GET_DEVICE_STATUS,
                 Command.TYPE_GET_MODEM_STATUS,
                 Command.TYPE_REBOOT_DEVICE,
                 Command.TYPE_POSITION_SINGLE,
                 Command.TYPE_GET_VERSION,
                 Command.TYPE_IDENTIFICATION);
-        addServer(new TrackerServer(false, getName()) {
+        setTextCommandEncoder(new WondexProtocolEncoder(this));
+        setSupportedTextCommands(
+                Command.TYPE_GET_DEVICE_STATUS,
+                Command.TYPE_GET_MODEM_STATUS,
+                Command.TYPE_REBOOT_DEVICE,
+                Command.TYPE_POSITION_SINGLE,
+                Command.TYPE_GET_VERSION,
+                Command.TYPE_IDENTIFICATION);
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new WondexFrameDecoder());
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new WondexProtocolEncoder());
+                pipeline.addLast(new WondexProtocolEncoder(WondexProtocol.this));
                 pipeline.addLast(new WondexProtocolDecoder(WondexProtocol.this));
             }
         });
-        addServer(new TrackerServer(true, getName()) {
+        addServer(new TrackerServer(config, getName(), true) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new WondexProtocolEncoder());
+                pipeline.addLast(new WondexProtocolEncoder(WondexProtocol.this));
                 pipeline.addLast(new WondexProtocolDecoder(WondexProtocol.this));
             }
         });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2019 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2024 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,24 +17,29 @@ package org.traccar;
 
 import com.google.inject.Guice;
 import com.google.inject.Injector;
+import com.google.inject.ProvisionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.traccar.broadcast.BroadcastService;
+import org.traccar.schedule.ScheduleManager;
+import org.traccar.storage.DatabaseModule;
+import org.traccar.web.WebModule;
+import org.traccar.web.WebServer;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.nio.charset.Charset;
-import java.sql.SQLException;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
 
 public final class Main {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(Main.class);
-
-    private static final long CLEAN_PERIOD = 24 * 60 * 60 * 1000;
 
     private static Injector injector;
 
@@ -42,30 +47,27 @@ public final class Main {
         return injector;
     }
 
-    private Main() {
-    }
+    private Main() {}
 
     public static void logSystemInfo() {
         try {
             OperatingSystemMXBean operatingSystemBean = ManagementFactory.getOperatingSystemMXBean();
-            LOGGER.info("Operating system"
-                    + " name: " + operatingSystemBean.getName()
-                    + " version: " + operatingSystemBean.getVersion()
-                    + " architecture: " + operatingSystemBean.getArch());
+            LOGGER.info(
+                    "Operating system name: {} version: {} architecture: {}",
+                    operatingSystemBean.getName(), operatingSystemBean.getVersion(), operatingSystemBean.getArch());
 
             RuntimeMXBean runtimeBean = ManagementFactory.getRuntimeMXBean();
-            LOGGER.info("Java runtime"
-                    + " name: " + runtimeBean.getVmName()
-                    + " vendor: " + runtimeBean.getVmVendor()
-                    + " version: " + runtimeBean.getVmVersion());
+            LOGGER.info(
+                    "Java runtime name: {} vendor: {} version: {}",
+                    runtimeBean.getVmName(), runtimeBean.getVmVendor(), runtimeBean.getVmVersion());
 
             MemoryMXBean memoryBean = ManagementFactory.getMemoryMXBean();
-            LOGGER.info("Memory limit"
-                    + " heap: " + memoryBean.getHeapMemoryUsage().getMax() / (1024 * 1024) + "mb"
-                    + " non-heap: " + memoryBean.getNonHeapMemoryUsage().getMax() / (1024 * 1024) + "mb");
+            LOGGER.info(
+                    "Memory limit heap: {}mb non-heap: {}mb",
+                    memoryBean.getHeapMemoryUsage().getMax() / (1024 * 1024),
+                    memoryBean.getNonHeapMemoryUsage().getMax() / (1024 * 1024));
 
-            LOGGER.info("Character encoding: "
-                    + System.getProperty("file.encoding") + " charset: " + Charset.defaultCharset());
+            LOGGER.info("Character encoding: {}", Charset.defaultCharset().displayName());
 
         } catch (Exception error) {
             LOGGER.warn("Failed to get system info");
@@ -75,13 +77,17 @@ public final class Main {
     public static void main(String[] args) throws Exception {
         Locale.setDefault(Locale.ENGLISH);
 
+        final String configFile;
         if (args.length <= 0) {
-            throw new RuntimeException("Configuration file is not provided");
+            configFile = "./debug.xml";
+            if (!new File(configFile).exists()) {
+                throw new RuntimeException("Configuration file is not provided");
+            }
+        } else {
+            configFile = args[args.length - 1];
         }
 
-        final String configFile = args[args.length - 1];
-
-        if (args[0].startsWith("--")) {
+        if (args.length > 0 && args[0].startsWith("--")) {
             WindowsService windowsService = new WindowsService("traccar") {
                 @Override
                 public void run() {
@@ -107,49 +113,44 @@ public final class Main {
 
     public static void run(String configFile) {
         try {
-            Context.init(configFile);
-            injector = Guice.createInjector(new MainModule());
+            injector = Guice.createInjector(new MainModule(configFile), new DatabaseModule(), new WebModule());
             logSystemInfo();
-            LOGGER.info("Version: " + Main.class.getPackage().getImplementationVersion());
+            LOGGER.info("Version: {}", Main.class.getPackage().getImplementationVersion());
             LOGGER.info("Starting server...");
 
-            Context.getServerManager().start();
-            if (Context.getWebServer() != null) {
-                Context.getWebServer().start();
+            var services = new ArrayList<LifecycleObject>();
+            for (var clazz : List.of(
+                    ScheduleManager.class, ServerManager.class, WebServer.class, BroadcastService.class)) {
+                var service = injector.getInstance(clazz);
+                if (service != null) {
+                    service.start();
+                    services.add(service);
+                }
             }
 
-            new Timer().scheduleAtFixedRate(new TimerTask() {
-                @Override
-                public void run() {
+            Thread.setDefaultUncaughtExceptionHandler((t, e) -> LOGGER.error("Thread exception", e));
+
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                LOGGER.info("Stopping server...");
+
+                for (var service : services) {
                     try {
-                        Context.getDataManager().clearHistory();
-                    } catch (SQLException error) {
-                        LOGGER.warn("Clear history error", error);
+                        service.stop();
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
                     }
                 }
-            }, 0, CLEAN_PERIOD);
-
-            Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-                @Override
-                public void uncaughtException(Thread t, Throwable e) {
-                    LOGGER.error("Thread exception", e);
-                }
-            });
-
-            Runtime.getRuntime().addShutdownHook(new Thread() {
-                @Override
-                public void run() {
-                    LOGGER.info("Shutting down server...");
-
-                    if (Context.getWebServer() != null) {
-                        Context.getWebServer().stop();
-                    }
-                    Context.getServerManager().stop();
-                }
-            });
+                injector.getInstance(ExecutorService.class).shutdown();
+            }));
         } catch (Exception e) {
-            LOGGER.error("Main method error", e);
-            throw new RuntimeException(e);
+            Throwable unwrapped;
+            if (e instanceof ProvisionException) {
+                unwrapped = e.getCause();
+            } else {
+                unwrapped = e;
+            }
+            LOGGER.error("Main method error", unwrapped);
+            System.exit(1);
         }
     }
 

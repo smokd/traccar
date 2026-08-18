@@ -1,18 +1,18 @@
 package org.traccar.protocol;
 
-import org.junit.Ignore;
-import org.junit.Test;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Command;
 
 public class CellocatorProtocolEncoderTest extends ProtocolTest {
 
-    @Ignore
+    @Disabled
     @Test
     public void testEncode() throws Exception {
 
-        CellocatorProtocolEncoder encoder = new CellocatorProtocolEncoder();
-        
+        var encoder = inject(new CellocatorProtocolEncoder(null));
+
         Command command = new Command();
         command.setDeviceId(1);
         command.setType(Command.TYPE_OUTPUT_CONTROL);

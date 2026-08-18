@@ -1,4 +1,5 @@
 /*
+ * Copyright 2020 - 2024 Anton Tananaev (anton@traccar.org)
  * Copyright 2016 Gabor Somogyi (gabor.g.somogyi@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,19 +16,4 @@
  */
 package org.traccar.model;
 
-public class Typed {
-
-    private String type;
-
-    public Typed(String type) {
-        this.type = type;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-}
+public record Typed(String type) {}

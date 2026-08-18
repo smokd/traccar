@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,23 +19,27 @@ import io.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
 import org.traccar.PipelineBuilder;
 import org.traccar.TrackerServer;
+import org.traccar.config.Config;
 import org.traccar.model.Command;
+
+import jakarta.inject.Inject;
 
 public class Pt502Protocol extends BaseProtocol {
 
-    public Pt502Protocol() {
+    @Inject
+    public Pt502Protocol(Config config) {
         setSupportedDataCommands(
                 Command.TYPE_CUSTOM,
                 Command.TYPE_SET_TIMEZONE,
                 Command.TYPE_ALARM_SPEED,
                 Command.TYPE_OUTPUT_CONTROL,
                 Command.TYPE_REQUEST_PHOTO);
-        addServer(new TrackerServer(false, getName()) {
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new Pt502FrameDecoder());
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new Pt502ProtocolEncoder());
+                pipeline.addLast(new Pt502ProtocolEncoder(Pt502Protocol.this));
                 pipeline.addLast(new Pt502ProtocolDecoder(Pt502Protocol.this));
             }
         });

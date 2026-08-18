@@ -20,7 +20,7 @@ import io.netty.channel.Channel;
 import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import org.traccar.BaseHttpProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.DateUtil;
 import org.traccar.model.Position;
@@ -42,9 +42,9 @@ import java.util.List;
 
 public class SpotProtocolDecoder extends BaseHttpProtocolDecoder {
 
-    private DocumentBuilder documentBuilder;
-    private XPath xPath;
-    private XPathExpression messageExpression;
+    private final DocumentBuilder documentBuilder;
+    private final XPath xPath;
+    private final XPathExpression messageExpression;
 
     public SpotProtocolDecoder(Protocol protocol) {
         super(protocol);

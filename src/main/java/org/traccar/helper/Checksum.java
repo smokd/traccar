@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2026 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,21 +17,34 @@ package org.traccar.helper;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.zip.CRC32;
+import java.util.Locale;
 
 public final class Checksum {
 
-    private Checksum() {
-    }
+    private Checksum() {}
+
+    public static final Algorithm CRC8_EGTS = new Algorithm(8, 0x31, 0xFF, false, false, 0x00);
+    public static final Algorithm CRC8_ROHC = new Algorithm(8, 0x07, 0xFF, true, true, 0x00);
+    public static final Algorithm CRC8_DALLAS = new Algorithm(8, 0x31, 0x00, true, true, 0x00);
+
+    public static final Algorithm CRC16_IBM = new Algorithm(16, 0x8005, 0x0000, true, true, 0x0000);
+    public static final Algorithm CRC16_X25 = new Algorithm(16, 0x1021, 0xFFFF, true, true, 0xFFFF);
+    public static final Algorithm CRC16_MODBUS = new Algorithm(16, 0x8005, 0xFFFF, true, true, 0x0000);
+    public static final Algorithm CRC16_CCITT_FALSE = new Algorithm(16, 0x1021, 0xFFFF, false, false, 0x0000);
+    public static final Algorithm CRC16_KERMIT = new Algorithm(16, 0x1021, 0x0000, true, true, 0x0000);
+    public static final Algorithm CRC16_XMODEM = new Algorithm(16, 0x1021, 0x0000, false, false, 0x0000);
+
+    public static final Algorithm CRC32_STANDARD = new Algorithm(32, 0x04C11DB7, 0xFFFFFFFF, true, true, 0xFFFFFFFF);
+    public static final Algorithm CRC32_MPEG2 = new Algorithm(32, 0x04C11DB7, 0xFFFFFFFF, false, false, 0x00000000);
 
     public static class Algorithm {
 
-        private int poly;
-        private int init;
-        private boolean refIn;
-        private boolean refOut;
-        private int xorOut;
-        private int[] table;
+        private final int poly;
+        private final int init;
+        private final boolean refIn;
+        private final boolean refOut;
+        private final int xorOut;
+        private final int[] table;
 
         public Algorithm(int bits, int poly, int init, boolean refIn, boolean refOut, int xorOut) {
             this.poly = poly;
@@ -39,7 +52,13 @@ public final class Checksum {
             this.refIn = refIn;
             this.refOut = refOut;
             this.xorOut = xorOut;
-            this.table = bits == 8 ? initTable8() : initTable16();
+            if (bits == 8) {
+                this.table = initTable8();
+            } else if (bits == 16) {
+                this.table = initTable16();
+            } else {
+                this.table = initTable32();
+            }
         }
 
         private int[] initTable8() {
@@ -72,6 +91,22 @@ public final class Checksum {
                     }
                 }
                 table[i] = crc & 0xFFFF;
+            }
+            return table;
+        }
+
+        private int[] initTable32() {
+            int[] table = new int[256];
+            for (int i = 0; i < 256; i++) {
+                int crc = i << 24;
+                for (int j = 0; j < 8; j++) {
+                    if ((crc & 0x80000000) != 0) {
+                        crc = (crc << 1) ^ poly;
+                    } else {
+                        crc <<= 1;
+                    }
+                }
+                table[i] = crc;
             }
             return table;
         }
@@ -117,22 +152,19 @@ public final class Checksum {
         return (crc ^ algorithm.xorOut) & 0xFFFF;
     }
 
-    public static final Algorithm CRC8_EGTS = new Algorithm(8, 0x31, 0xFF, false, false, 0x00);
-    public static final Algorithm CRC8_ROHC = new Algorithm(8, 0x07, 0xFF, true, true, 0x00);
-
-    public static final Algorithm CRC16_IBM = new Algorithm(16, 0x8005, 0x0000, true, true, 0x0000);
-    public static final Algorithm CRC16_X25 = new Algorithm(16, 0x1021, 0xFFFF, true, true, 0xFFFF);
-    public static final Algorithm CRC16_MODBUS = new Algorithm(16, 0x8005, 0xFFFF, true, true, 0x0000);
-    public static final Algorithm CRC16_CCITT_FALSE = new Algorithm(16, 0x1021, 0xFFFF, false, false, 0x0000);
-    public static final Algorithm CRC16_KERMIT = new Algorithm(16, 0x1021, 0x0000, true, true, 0x0000);
-    public static final Algorithm CRC16_XMODEM = new Algorithm(16, 0x1021, 0x0000, false, false, 0x0000);
-
-    public static int crc32(ByteBuffer buf) {
-        CRC32 checksum = new CRC32();
+    public static int crc32(Algorithm algorithm, ByteBuffer buf) {
+        int crc = algorithm.init;
         while (buf.hasRemaining()) {
-            checksum.update(buf.get());
+            int b = buf.get() & 0xFF;
+            if (algorithm.refIn) {
+                b = reverse(b, 8);
+            }
+            crc = (crc << 8) ^ algorithm.table[((crc >> 24) & 0xFF) ^ b];
         }
-        return (int) checksum.getValue();
+        if (algorithm.refOut) {
+            crc = reverse(crc, 32);
+        }
+        return crc ^ algorithm.xorOut;
     }
 
     public static int xor(ByteBuffer buf) {
@@ -151,13 +183,8 @@ public final class Checksum {
         return checksum;
     }
 
-    public static String nmea(String msg) {
-        int checksum = 0;
-        byte[] bytes = msg.getBytes(StandardCharsets.US_ASCII);
-        for (int i = 1; i < bytes.length; i++) {
-            checksum ^= bytes[i];
-        }
-        return String.format("*%02x", checksum).toUpperCase();
+    public static String nmea(String string) {
+        return String.format("*%02X", xor(string));
     }
 
     public static int sum(ByteBuffer buf) {
@@ -168,12 +195,20 @@ public final class Checksum {
         return checksum;
     }
 
+    public static int modulo256(ByteBuffer buf) {
+        int checksum = 0;
+        while (buf.hasRemaining()) {
+            checksum = (checksum + buf.get()) & 0xFF;
+        }
+        return checksum;
+    }
+
     public static String sum(String msg) {
         byte checksum = 0;
         for (byte b : msg.getBytes(StandardCharsets.US_ASCII)) {
             checksum += b;
         }
-        return String.format("%02X", checksum).toUpperCase();
+        return String.format("%02X", checksum).toUpperCase(Locale.ROOT);
     }
 
     public static long luhn(long imei) {
@@ -195,6 +230,21 @@ public final class Checksum {
         }
 
         return (10 - (checksum % 10)) % 10;
+    }
+
+    public static int ip(ByteBuffer data) {
+        int sum = 0;
+        while (data.remaining() > 0) {
+            sum += data.get() & 0xff;
+            if ((sum & 0x80000000) != 0) {
+                sum = (sum & 0xffff) + (sum >> 16);
+            }
+        }
+        while ((sum >> 16) > 0) {
+            sum = (sum & 0xffff) + sum >> 16;
+        }
+        sum = (sum == 0xffff) ? sum & 0xffff : (~sum) & 0xffff;
+        return sum;
     }
 
 }

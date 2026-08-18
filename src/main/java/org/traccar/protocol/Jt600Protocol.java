@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,22 +19,26 @@ import io.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
 import org.traccar.PipelineBuilder;
 import org.traccar.TrackerServer;
+import org.traccar.config.Config;
 import org.traccar.model.Command;
+
+import jakarta.inject.Inject;
 
 public class Jt600Protocol extends BaseProtocol {
 
-    public Jt600Protocol() {
+    @Inject
+    public Jt600Protocol(Config config) {
         setSupportedDataCommands(
                 Command.TYPE_ENGINE_RESUME,
                 Command.TYPE_ENGINE_STOP,
                 Command.TYPE_SET_TIMEZONE,
                 Command.TYPE_REBOOT_DEVICE);
-        addServer(new TrackerServer(false, getName()) {
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new Jt600FrameDecoder());
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new Jt600ProtocolEncoder());
+                pipeline.addLast(new Jt600ProtocolEncoder(Jt600Protocol.this));
                 pipeline.addLast(new Jt600ProtocolDecoder(Jt600Protocol.this));
             }
         });

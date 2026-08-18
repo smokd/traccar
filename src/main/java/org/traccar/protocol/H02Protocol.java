@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,18 @@ package org.traccar.protocol;
 
 import io.netty.handler.codec.string.StringEncoder;
 import org.traccar.BaseProtocol;
-import org.traccar.Context;
 import org.traccar.PipelineBuilder;
 import org.traccar.TrackerServer;
+import org.traccar.config.Config;
+import org.traccar.config.Keys;
 import org.traccar.model.Command;
+
+import jakarta.inject.Inject;
 
 public class H02Protocol extends BaseProtocol {
 
-    public H02Protocol() {
+    @Inject
+    public H02Protocol(Config config) {
         setSupportedDataCommands(
                 Command.TYPE_ALARM_ARM,
                 Command.TYPE_ALARM_DISARM,
@@ -32,21 +36,21 @@ public class H02Protocol extends BaseProtocol {
                 Command.TYPE_ENGINE_RESUME,
                 Command.TYPE_POSITION_PERIODIC
         );
-        addServer(new TrackerServer(false, getName()) {
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
-                int messageLength = Context.getConfig().getInteger(getName() + ".messageLength");
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
+                int messageLength = config.getInteger(Keys.PROTOCOL_MESSAGE_LENGTH.withPrefix(getName()));
                 pipeline.addLast(new H02FrameDecoder(messageLength));
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new H02ProtocolEncoder());
+                pipeline.addLast(new H02ProtocolEncoder(H02Protocol.this));
                 pipeline.addLast(new H02ProtocolDecoder(H02Protocol.this));
             }
         });
-        addServer(new TrackerServer(true, getName()) {
+        addServer(new TrackerServer(config, getName(), true) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new StringEncoder());
-                pipeline.addLast(new H02ProtocolEncoder());
+                pipeline.addLast(new H02ProtocolEncoder(H02Protocol.this));
                 pipeline.addLast(new H02ProtocolDecoder(H02Protocol.this));
             }
         });

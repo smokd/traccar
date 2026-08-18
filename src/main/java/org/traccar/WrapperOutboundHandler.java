@@ -23,7 +23,7 @@ import java.net.SocketAddress;
 
 public class WrapperOutboundHandler implements ChannelOutboundHandler {
 
-    private ChannelOutboundHandler handler;
+    private final ChannelOutboundHandler handler;
 
     public ChannelOutboundHandler getWrappedHandler() {
         return handler;
@@ -67,8 +67,7 @@ public class WrapperOutboundHandler implements ChannelOutboundHandler {
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        if (msg instanceof NetworkMessage) {
-            NetworkMessage nm = (NetworkMessage) msg;
+        if (msg instanceof NetworkMessage nm) {
             handler.write(new WrapperContext(ctx, nm.getRemoteAddress()), nm.getMessage(), promise);
         } else {
             handler.write(ctx, msg, promise);

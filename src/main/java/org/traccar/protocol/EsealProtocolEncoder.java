@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2018 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +17,26 @@ package org.traccar.protocol;
 
 import org.traccar.StringProtocolEncoder;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 public class EsealProtocolEncoder extends StringProtocolEncoder {
+
+    public EsealProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
 
     @Override
     protected Object encodeCommand(Command command) {
 
-        switch (command.getType()) {
-            case Command.TYPE_CUSTOM:
-                return formatCommand(
-                        command, "##S,eSeal,{%s},256,3.0.8,{%s},E##", Command.KEY_UNIQUE_ID, Command.KEY_DATA);
-            case Command.TYPE_ALARM_ARM:
-                return formatCommand(
-                        command, "##S,eSeal,{%s},256,3.0.8,RC-Power Control,Power OFF,E##", Command.KEY_UNIQUE_ID);
-            case Command.TYPE_ALARM_DISARM:
-                return formatCommand(
-                        command, "##S,eSeal,{%s},256,3.0.8,RC-Unlock,E##", Command.KEY_UNIQUE_ID);
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_CUSTOM -> formatCommand(
+                    command, "##S,eSeal,%s,256,3.0.8,%s,E##", Command.KEY_UNIQUE_ID, Command.KEY_DATA);
+            case Command.TYPE_ALARM_ARM -> formatCommand(
+                    command, "##S,eSeal,%s,256,3.0.8,RC-Power Control,Power OFF,E##", Command.KEY_UNIQUE_ID);
+            case Command.TYPE_ALARM_DISARM -> formatCommand(
+                    command, "##S,eSeal,%s,256,3.0.8,RC-Unlock,E##", Command.KEY_UNIQUE_ID);
+            default -> null;
+        };
     }
 
 }

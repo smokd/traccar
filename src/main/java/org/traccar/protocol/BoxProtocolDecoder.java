@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
@@ -27,6 +27,7 @@ import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 public class BoxProtocolDecoder extends BaseProtocolDecoder {
@@ -47,7 +48,10 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
             .number("(d+.?d*),")                 // distance
             .number("(d+),")                     // event
             .number("(d+)")                      // status
-            .any()
+            .groupBegin()
+            .text(";")
+            .expression("(.+)")
+            .groupEnd("?")
             .compile();
 
     @Override
@@ -98,6 +102,16 @@ public class BoxProtocolDecoder extends BaseProtocolDecoder {
             position.set(Position.KEY_MOTION, BitUtil.check(status, 1));
             position.setValid(!BitUtil.check(status, 2));
             position.set(Position.KEY_STATUS, status);
+
+            if (parser.hasNext()) {
+                String[] data = parser.next().split(";");
+                for (String item : data) {
+                    int valueIndex = item.indexOf(',');
+                    position.set(
+                            item.substring(0, valueIndex).toLowerCase(Locale.ROOT),
+                            item.substring(valueIndex + 1));
+                }
+            }
 
             return position;
         }

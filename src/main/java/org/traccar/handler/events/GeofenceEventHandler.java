@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 - 2019 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2026 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,75 +15,80 @@
  */
 package org.traccar.handler.events;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import io.netty.channel.ChannelHandler;
-import org.traccar.database.CalendarManager;
-import org.traccar.database.GeofenceManager;
-import org.traccar.database.IdentityManager;
+import jakarta.inject.Inject;
+import org.traccar.config.Config;
+import org.traccar.config.Keys;
+import org.traccar.helper.model.PositionUtil;
 import org.traccar.model.Calendar;
-import org.traccar.model.Device;
 import org.traccar.model.Event;
+import org.traccar.model.Geofence;
 import org.traccar.model.Position;
+import org.traccar.session.cache.CacheManager;
 
-@ChannelHandler.Sharable
+import java.util.HashSet;
+import java.util.Set;
+
 public class GeofenceEventHandler extends BaseEventHandler {
 
-    private final IdentityManager identityManager;
-    private final GeofenceManager geofenceManager;
-    private final CalendarManager calendarManager;
+    private final CacheManager cacheManager;
+    private final boolean segmentCrossingEnabled;
 
-    public GeofenceEventHandler(
-            IdentityManager identityManager, GeofenceManager geofenceManager, CalendarManager calendarManager) {
-        this.identityManager = identityManager;
-        this.geofenceManager = geofenceManager;
-        this.calendarManager = calendarManager;
+    @Inject
+    public GeofenceEventHandler(Config config, CacheManager cacheManager) {
+        this.cacheManager = cacheManager;
+        segmentCrossingEnabled = config.getBoolean(Keys.EVENT_GEOFENCE_SEGMENT_CROSSING);
+    }
+
+    private void handleEvent(String type, Position position, Geofence geofence, Callback callback) {
+        if (geofence != null) {
+            long calendarId = geofence.getCalendarId();
+            Calendar calendar = calendarId != 0 ? cacheManager.getObject(Calendar.class, calendarId) : null;
+            if (calendar == null || calendar.checkMoment(position.getFixTime())) {
+                Event event = new Event(type, position);
+                event.setGeofenceId(geofence.getId());
+                callback.eventDetected(event);
+            }
+        }
     }
 
     @Override
-    protected Map<Event, Position> analyzePosition(Position position) {
-        Device device = identityManager.getById(position.getDeviceId());
-        if (device == null) {
-            return null;
-        }
-        if (!identityManager.isLatestPosition(position) || !position.getValid()) {
-            return null;
+    public void onPosition(Position position, Callback callback) {
+        if (!PositionUtil.isLatest(cacheManager, position)) {
+            return;
         }
 
-        List<Long> currentGeofences = geofenceManager.getCurrentDeviceGeofences(position);
-        List<Long> oldGeofences = new ArrayList<>();
-        if (device.getGeofenceIds() != null) {
-            oldGeofences.addAll(device.getGeofenceIds());
+        Set<Long> oldGeofences = new HashSet<>();
+        Position lastPosition = cacheManager.getPosition(position.getDeviceId());
+        if (lastPosition != null && lastPosition.getGeofenceIds() != null) {
+            oldGeofences.addAll(lastPosition.getGeofenceIds());
         }
-        List<Long> newGeofences = new ArrayList<>(currentGeofences);
-        newGeofences.removeAll(oldGeofences);
-        oldGeofences.removeAll(currentGeofences);
 
-        device.setGeofenceIds(currentGeofences);
+        Set<Long> newGeofences = new HashSet<>();
+        if (position.getGeofenceIds() != null) {
+            newGeofences.addAll(position.getGeofenceIds());
+        }
 
-        Map<Event, Position> events = new HashMap<>();
-        for (long geofenceId : oldGeofences) {
-            long calendarId = geofenceManager.getById(geofenceId).getCalendarId();
-            Calendar calendar = calendarId != 0 ? calendarManager.getById(calendarId) : null;
-            if (calendar == null || calendar.checkMoment(position.getFixTime())) {
-                Event event = new Event(Event.TYPE_GEOFENCE_EXIT, position.getDeviceId(), position.getId());
-                event.setGeofenceId(geofenceId);
-                events.put(event, position);
+        if (segmentCrossingEnabled && lastPosition != null) {
+            for (Geofence geofence : cacheManager.getDeviceObjects(position.getDeviceId(), Geofence.class)) {
+                if (!oldGeofences.contains(geofence.getId()) && !newGeofences.contains(geofence.getId())
+                        && geofence.containsSegment(lastPosition, position)) {
+                    handleEvent(Event.TYPE_GEOFENCE_CROSSED, position, geofence, callback);
+                }
             }
+        }
+
+        if (position.getGeofenceIds() != null) {
+            newGeofences.removeAll(oldGeofences);
+            position.getGeofenceIds().forEach(oldGeofences::remove);
+        }
+
+        for (long geofenceId : oldGeofences) {
+            Geofence geofence = cacheManager.getObject(Geofence.class, geofenceId);
+            handleEvent(Event.TYPE_GEOFENCE_EXIT, position, geofence, callback);
         }
         for (long geofenceId : newGeofences) {
-            long calendarId = geofenceManager.getById(geofenceId).getCalendarId();
-            Calendar calendar = calendarId != 0 ? calendarManager.getById(calendarId) : null;
-            if (calendar == null || calendar.checkMoment(position.getFixTime())) {
-                Event event = new Event(Event.TYPE_GEOFENCE_ENTER, position.getDeviceId(), position.getId());
-                event.setGeofenceId(geofenceId);
-                events.put(event, position);
-            }
+            Geofence geofence = cacheManager.getObject(Geofence.class, geofenceId);
+            handleEvent(Event.TYPE_GEOFENCE_ENTER, position, geofence, callback);
         }
-        return events;
     }
-
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,8 +19,13 @@ import java.util.TimeZone;
 
 import org.traccar.StringProtocolEncoder;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 public class Pt502ProtocolEncoder extends StringProtocolEncoder implements StringProtocolEncoder.ValueFormatter {
+
+    public Pt502ProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
 
     @Override
     public String formatValue(String key, Object value) {
@@ -39,20 +44,15 @@ public class Pt502ProtocolEncoder extends StringProtocolEncoder implements Strin
     @Override
     protected Object encodeCommand(Command command) {
 
-        switch (command.getType()) {
-            case Command.TYPE_CUSTOM:
-                return formatCommand(command, "{%s}\r\n", Command.KEY_DATA);
-            case Command.TYPE_OUTPUT_CONTROL:
-                return formatCommand(command, "#OPC{%s},{%s}\r\n", Command.KEY_INDEX, Command.KEY_DATA);
-            case Command.TYPE_SET_TIMEZONE:
-                return formatCommand(command, "#TMZ{%s}\r\n", Command.KEY_TIMEZONE);
-            case Command.TYPE_ALARM_SPEED:
-                return formatCommand(command, "#SPD{%s}\r\n", Command.KEY_DATA);
-            case Command.TYPE_REQUEST_PHOTO:
-                return formatCommand(command, "#PHO\r\n");
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_CUSTOM -> formatCommand(command, "%s\r\n", Command.KEY_DATA);
+            case Command.TYPE_OUTPUT_CONTROL ->
+                    formatCommand(command, "#OPC%s,%s\r\n", Command.KEY_INDEX, Command.KEY_DATA);
+            case Command.TYPE_SET_TIMEZONE -> formatCommand(command, "#TMZ%s\r\n", Command.KEY_TIMEZONE);
+            case Command.TYPE_ALARM_SPEED -> formatCommand(command, "#SPD%s\r\n", Command.KEY_DATA);
+            case Command.TYPE_REQUEST_PHOTO -> formatCommand(command, "#PHO\r\n");
+            default -> null;
+        };
     }
 
 }

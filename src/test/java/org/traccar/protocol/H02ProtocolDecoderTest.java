@@ -1,6 +1,6 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Position;
 
@@ -9,7 +9,39 @@ public class H02ProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        H02ProtocolDecoder decoder = new H02ProtocolDecoder(null);
+        var decoder = inject(new H02ProtocolDecoder(null));
+
+        verifyPosition(decoder, buffer(
+                "*HQ,9001000002,V8,213945,A,3542.2043,N,38.6508,W,0.00,170,221025,FBFFF9FF,0,0,0,0,22,31,126,0#"),
+                position("2025-10-22 21:39:45.000", true, 35.70340, -0.64418));
+
+        verifyPosition(decoder, buffer(
+                "*HQ,3177718238,V6,002926,V,3514.4088,N,9733.2842,W,0.00,0.00,151222,FFF7FBFF,310,260,32936,13641,8944501311217563382F,#"));
+
+        verifyPosition(decoder, buffer(
+                "*HQ,5905101893,V1,105759,A,37573392,S,145037022,E,000.00,173,280122,FF7FFBFF,,,9059e2c,8232,4#"));
+
+        verifyPosition(decoder, buffer(
+                "*HQ,4970105243,V1,104000,A,2235.1777,N,11357.8913,E,000.27,235,130721,FFFFFBFF,460,11,d18e105,7752,6#"));
+
+        verifyAttribute(decoder, buffer(
+                "*HQ,135790246811220,HTBT,100#"),
+                Position.KEY_BATTERY_LEVEL, 100);
+
+        verifyPosition(decoder, buffer(
+                "*HQ,9180271064,V5,091233,V,2348.8912,N,09021.3302,E,000.00,000,051219,FFFFBBFF,470,01,21019,2033,2921283#"));
+
+        verifyPosition(decoder, binary(
+                "2491802711800850240512192350143206090249758e000001ffffbbff00bdf0900000000001d60161cc4b9a35"));
+
+        verifyNull(decoder, buffer(
+                "*HQ,135790246811220,HTBT#"));
+
+        verifyPosition(decoder, buffer(
+                "*HQ,865205035331981,V1,132926,A,1935.3933,N,07920.4134,E,  3.34,342,280519,FFFFFFFF#"));
+
+        verifyPosition(decoder, binary(
+                "24702802061601234020031910125482600612695044000000ffffbbff000000000000000001760d04e2c9934d"));
 
         verifyNotNull(decoder, buffer(
                 "*hq,356327081001239,VP1,V,470,002,92,3565,0Y92,19433,30Y92,1340,29#"));
@@ -94,6 +126,9 @@ public class H02ProtocolDecoderTest extends ProtocolTest {
 
         verifyAttributes(decoder, buffer(
                 "*HQ,4208150188,NBR,210249,260,6,0,7,1014,50675,37,1014,50633,27,1014,17933,18,1014,17231,15,1014,50632,12,1014,13211,11,1014,17031,10,281216,FFFFFBFF,2#"));
+        
+        verifyAttributes(decoder, buffer(
+                "*HQ,7401004662,NBR,160453,234,10,0,2,21580,27766,-67,21580,27766,-67,291019,FFFFFBFF,6#"));
 
         verifyAttributes(decoder, buffer(
                 "*HQ,1600068812,NBR,141335,262,02,255,6,431,17003,26,431,11101,13,431,6353,13,431,22172,13,431,11093,13,431,60861,10,151216,FFFFFBFF#"));
@@ -237,12 +272,16 @@ public class H02ProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, binary(
                 "24971305007205201916101533335008000073206976000000effffbffff000252776566060000000000000000000049"));
 
+        verifyAttribute(decoder, buffer(
+                "*HQ,5226073533,SMS,ST906(70SACD)_TQ_V_2.0 2024/06/07\nID:5226073533\nIP:1.2.3.4 5013\nUT:30,30,300\nVOLT:12.9V\nAPN:internet.example.com\nGPS:A-24-23\nGSM:26#"),
+                Position.KEY_RESULT, "ST906(70SACD)_TQ_V_2.0 2024/06/07\nID:5226073533\nIP:1.2.3.4 5013\nUT:30,30,300\nVOLT:12.9V\nAPN:internet.example.com\nGPS:A-24-23\nGSM:26");
+
     }
 
     @Test
     public void testDecodeStatus() throws Exception {
 
-        H02ProtocolDecoder decoder = new H02ProtocolDecoder(null);
+        var decoder = inject(new H02ProtocolDecoder(null));
 
         verifyAttribute(decoder, buffer(
                 "*HQ,2705171109,V1,213324,A,5002.5849,N,01433.7822,E,0.00,000,140613,FFFFFFFF#"),

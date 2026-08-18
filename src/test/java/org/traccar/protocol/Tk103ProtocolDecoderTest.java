@@ -1,6 +1,6 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Position;
 
@@ -9,7 +9,40 @@ public class Tk103ProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        Tk103ProtocolDecoder decoder = new Tk103ProtocolDecoder(null);
+        var decoder = inject(new Tk103ProtocolDecoder(null));
+
+        verifyAttributes(decoder, text(
+                "(007030201454BS5190:02150000753001DC,91:0EE8060EDC0A01DC,92:42014201DC0A01DC,93:00010127000037C8,94:0E01000002000000,95:020EE10EE20EE800030EE40EE00EE700040EDD0EE40EE400050EDC0EDF0EE400,96:0142000000000000,97:0000000000000000,98:0000000000000000)"));
+
+        verifyAttribute(decoder, text(
+                "(352602014867BS500064FF0EF10FF10FF00FF20FF30FF20FF20FF40FF20FF40FF40FF20FF30FF20F0000000000000000000000000000000000000000000000001663000000010004000000000000000002444444420000000000A00FA000000000000000200000000315E2000000)"),
+                "batteryTemp2", 26);
+
+        verifyAttributes(decoder, text(
+                "(027046434858BZ00,{460,0,20949,58711}\n{460,0,20494,54003}\n{460,0,20951,19569}\n,01000000)"));
+
+        verifyAttributes(decoder, text(
+                "(027045009305BP05355227045009305,{413,2,30073,16724}\n{413,2,30073,16730}\n{413,2,30073,49860}\n,01000000)"));
+
+        verifyPosition(decoder, text(
+                "(868822040452227,DW3B,150421,A,4154.51607N,45.78950E,0.050,103142,0.000,595.200,7,0)"));
+
+        verifyPosition(decoder, text(
+                "(086375304593BR00210119A2220.0160N11335.4073E0000014000309.84001000293L0000015FP23BS27F)"));
+
+        verifyAttribute(decoder, text(
+                "(027023361470BV005J6RW2H53HL066029)"),
+                Position.KEY_VIN, "5J6RW2H53HL066029");
+
+        verifyAttribute(decoder, text(
+                "(044027395704BQ81,ALARM,1,164,151101A2238.5237N11349.4571E0.7031241010.0000,00000000)"),
+                Position.KEY_ALARM, Position.ALARM_OVERSPEED);
+
+        verifyPosition(decoder, text(
+                "(027023361470BR00200617A4000.5775N 8415.4076W 46.0173725 87.3101000000L00000000)"));
+
+        verifyPosition(decoder, text(
+                "(BALLESTEROS3BR00190408A4113.5700N00140.3100E000.0162431000.0001000000L00000000)"));
 
         verifyPosition(decoder, text(
                 "(094625928000BR00190213A1156.0431S07705.6145W000.000023521.40000000007L00000314T113)"));
@@ -32,7 +65,7 @@ public class Tk103ProtocolDecoderTest extends ProtocolTest {
         verifyPosition(decoder, text(
                 "(864768011069660,ZC17,250517,A,3211.7118N,03452.8086E,0.68,115525,208.19,64.50,9)"));
 
-        verifyNull(decoder, text(
+        verifyPosition(decoder, text(
                 "(357593060760397BP02,G,2,170304A6015.7466N01101.8460E001.609445591.048,7)"));
 
         verifyPosition(decoder, text(
@@ -40,7 +73,7 @@ public class Tk103ProtocolDecoderTest extends ProtocolTest {
 
         verifyAttribute(decoder, text(
                 "(087073803649BR00170221A6142.0334N02712.2197E000.3203149000.00,00000000L00000000)"),
-                Position.KEY_FUEL_LEVEL, 0);
+                Position.KEY_FUEL, 0);
 
         verifyPosition(decoder, text(
                 "(864768010869060,DW30,050117,A,5135.82713N,00001.17918E,0.089,154745,000.0,43.40,12)"));

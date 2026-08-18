@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,14 +20,16 @@ import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
+import org.traccar.helper.StringUtil;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
 
 import java.net.SocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
 public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
@@ -76,10 +78,10 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
         if (type != MSG_MINI_EVENT_REPORT) {
             buf.readUnsignedInt(); // fix time
         }
-        position.setLatitude(buf.readInt() * 0.0000001);
-        position.setLongitude(buf.readInt() * 0.0000001);
+        position.setLatitude(buf.readInt() / 10000000.0);
+        position.setLongitude(buf.readInt() / 10000000.0);
         if (type != MSG_MINI_EVENT_REPORT) {
-            position.setAltitude(buf.readInt() * 0.01);
+            position.setAltitude(buf.readInt() / 100.0);
             position.setSpeed(UnitsConverter.knotsFromCps(buf.readUnsignedInt()));
         }
         position.setCourse(buf.readShort());
@@ -121,22 +123,34 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
             position.set(Position.KEY_EVENT, buf.readUnsignedByte());
         }
 
-        int accType = BitUtil.from(buf.getUnsignedByte(buf.readerIndex()), 6);
-        int accCount = BitUtil.to(buf.readUnsignedByte(), 6);
+        if (type == MSG_EVENT_REPORT || type == MSG_LOCATE_REPORT || type == MSG_MINI_EVENT_REPORT) {
 
-        if (type != MSG_MINI_EVENT_REPORT) {
-            position.set("append", buf.readUnsignedByte());
-        }
+            int accType = BitUtil.from(buf.getUnsignedByte(buf.readerIndex()), 6);
+            int accCount = BitUtil.to(buf.readUnsignedByte(), 6);
 
-        if (accType == 1) {
-            buf.readUnsignedInt(); // threshold
-            buf.readUnsignedInt(); // mask
-        }
-
-        for (int i = 0; i < accCount; i++) {
-            if (buf.readableBytes() >= 4) {
-                position.set("acc" + i, buf.readUnsignedInt());
+            if (type != MSG_MINI_EVENT_REPORT) {
+                position.set("append", buf.readUnsignedByte());
             }
+
+            if (accType == 1) {
+                buf.readUnsignedInt(); // threshold
+                buf.readUnsignedInt(); // mask
+            }
+
+            for (int i = 0; i < accCount; i++) {
+                if (buf.readableBytes() >= 4) {
+                    position.set("acc" + i, buf.readUnsignedInt());
+                }
+            }
+
+        } else if (type == MSG_USER_DATA) {
+
+            buf.readUnsignedByte(); // message route
+            buf.readUnsignedByte(); // message id
+            position.set(
+                    Position.KEY_RESULT,
+                    buf.readCharSequence(buf.readUnsignedShort(), StandardCharsets.US_ASCII).toString().trim());
+
         }
 
         return position;
@@ -153,7 +167,8 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
             int content = buf.readUnsignedByte();
 
             if (BitUtil.check(content, 0)) {
-                String id = ByteBufUtil.hexDump(buf.readSlice(buf.readUnsignedByte()));
+                String id = StringUtil.stripTrailing(
+                        'f', ByteBufUtil.hexDump(buf.readSlice(buf.readUnsignedByte())));
                 getDeviceSession(channel, remoteAddress, id);
             }
 
@@ -192,7 +207,8 @@ public class CalAmpProtocolDecoder extends BaseProtocolDecoder {
             sendResponse(channel, remoteAddress, type, index, 0);
         }
 
-        if (type == MSG_EVENT_REPORT || type == MSG_LOCATE_REPORT || type == MSG_MINI_EVENT_REPORT) {
+        if (type == MSG_EVENT_REPORT || type == MSG_LOCATE_REPORT
+                || type == MSG_MINI_EVENT_REPORT || type == MSG_USER_DATA) {
             return decodePosition(deviceSession, type, buf);
         }
 

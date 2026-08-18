@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2024 Anton Tananaev (anton@traccar.org)
  * Copyright 2017 - 2018 Andrey Kunitsyn (andrey@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,47 +16,39 @@
  */
 package org.traccar.notificators;
 
-import org.traccar.Context;
-import org.traccar.Main;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import org.traccar.database.StatisticsManager;
 import org.traccar.model.Event;
 import org.traccar.model.Position;
 import org.traccar.model.User;
-import org.traccar.notification.MessageException;
 import org.traccar.notification.NotificationFormatter;
+import org.traccar.notification.NotificationMessage;
 import org.traccar.sms.SmsManager;
 
-public final class NotificatorSms extends Notificator {
+import java.util.concurrent.CompletableFuture;
+
+@Singleton
+public class NotificatorSms extends Notificator {
 
     private final SmsManager smsManager;
+    private final StatisticsManager statisticsManager;
 
-    public NotificatorSms() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
-        final String smsClass = Context.getConfig().getString("notificator.sms.manager.class", "");
-        if (smsClass.length() > 0) {
-            smsManager = (SmsManager) Class.forName(smsClass).newInstance();
-        } else {
-            smsManager = Context.getSmsManager();
-        }
+    @Inject
+    public NotificatorSms(
+            SmsManager smsManager, NotificationFormatter notificationFormatter, StatisticsManager statisticsManager) {
+        super(notificationFormatter);
+        this.smsManager = smsManager;
+        this.statisticsManager = statisticsManager;
     }
 
     @Override
-    public void sendAsync(long userId, Event event, Position position) {
-        final User user = Context.getPermissionsManager().getUser(userId);
-        if (user.getPhone() != null) {
-            Main.getInjector().getInstance(StatisticsManager.class).registerSms();
-            smsManager.sendMessageAsync(user.getPhone(),
-                    NotificationFormatter.formatShortMessage(userId, event, position), false);
+    public CompletableFuture<Void> sendAsync(User user, NotificationMessage message, Event event, Position position) {
+        if (user.getPhone() == null) {
+            return CompletableFuture.completedFuture(null);
         }
-    }
-
-    @Override
-    public void sendSync(long userId, Event event, Position position) throws MessageException, InterruptedException {
-        final User user = Context.getPermissionsManager().getUser(userId);
-        if (user.getPhone() != null) {
-            Main.getInjector().getInstance(StatisticsManager.class).registerSms();
-            smsManager.sendMessageSync(user.getPhone(),
-                    NotificationFormatter.formatShortMessage(userId, event, position), false);
-        }
+        statisticsManager.registerSms();
+        return smsManager.sendMessage(user.getPhone(), message.digest(), false);
     }
 
 }

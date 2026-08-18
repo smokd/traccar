@@ -1,14 +1,50 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
+import org.traccar.model.Position;
 
 public class TaipProtocolDecoderTest extends ProtocolTest {
 
     @Test
     public void testDecode() throws Exception {
 
-        TaipProtocolDecoder decoder = new TaipProtocolDecoder(null);
+        var decoder = inject(new TaipProtocolDecoder(null));
+
+        verifyNull(decoder, text(
+                ">RAL19500+00230+00012;ID=3168;*48<"));
+
+        verifyNull(decoder, text(
+                ">RLN19500000+337885218-0857685155+000753940000+000000000800000000000000000000000000000000000000000012;ID=3168;*4D<"));
+
+        verifyAttributes(decoder, text(
+                ">RUS00,010170000000+0000000+000000000000001009999000011060074755268EF,0001139503871486,01,ZZZZZZZZZZ;ID=11817;#LOG:6AE4;*2C<"));
+
+        verifyPosition(decoder, text(
+                ">RPI041220132203-2683525-065204060150001050000101511140022118857EF27;ID=0000;#LOG:DECB;*07<"));
+
+        verifyPosition(decoder, text(
+                ">RCQ00151123235718-2782354-06407582055121FF0013501CDCC6313011100001514;#0805;ID=SIA056;*15<"));
+
+        verifyNull(decoder, text(
+                ">RTT151123153149-4330468-06503640000009300DF2101 04101203 000 00000000130000040414;ID=8803;#1ABD;*2B<"));
+
+        verifyAttribute(decoder, text(
+                ">RUS00,111220124402-3138067-06417623000012200FF,000000000000000000000000000,0000000111,15640422,00000,+25.5,00000,51;ID=CST3G0443;#IP1:089F;*34<"),
+                Position.PREFIX_TEMP + 1, 25.5);
+
+        verifyAttribute(decoder, text(
+                ">RUS00,031120185945-3138060-06417622000209200FF,000000000000000000000000000,0000000000,11440419,00000,00000,00000,00;ID=CST3G0495;#IP0:1EF7;*4B<"),
+                Position.KEY_BATTERY, 4.19);
+
+        verifyPosition(decoder, text(
+                ">RUS00,031120185945-3138060-06417622000209200FF,000000000000000000000000000,0000000000,11440419,00000,00;ID=CST3G0495;#IP0:1EF7;*4B<"));
+
+        verifyPosition(decoder, text(
+                ">RGP041120190000-3137454-064075520001883004D50;ID=8385;#IP0:0080;*19<"));
+
+        verifyNull(decoder, text(
+                ">RLN25601000+297185103-0955755990+000059150000+0000000012000000000000000000000000000000000000000000000000000000000012;ID=3580;*48<"));
 
         verifyPosition(decoder, text(
                 ">RGP211217112154-2748332-058946350000000FF7F2100;ID=AA01;#0002;*2D<"));

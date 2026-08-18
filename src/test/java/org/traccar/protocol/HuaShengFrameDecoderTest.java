@@ -1,16 +1,16 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class HuaShengFrameDecoderTest extends ProtocolTest {
 
     @Test
     public void testDecode() throws Exception {
 
-        HuaShengFrameDecoder decoder = new HuaShengFrameDecoder();
+        var decoder = inject(new HuaShengFrameDecoder());
 
         assertEquals(
                 binary("c0010c00120060000000000004000600010100c0"),
@@ -27,6 +27,10 @@ public class HuaShengFrameDecoderTest extends ProtocolTest {
         assertEquals(
                 binary("C000000041AA00000000000030C000000031353035323630373538323800ADDCC100226AEF0000000000120005000100151206EF0504E99975002903EB80556492CEC0"),
                 decoder.decode(null, null, binary("C000000041AA00000000000030DBDC00000031353035323630373538323800ADDCC100226AEF0000000000120005000100151206EF0504E99975002903EB80556492CEC0")));
+
+        assertEquals(
+                binary("C000000044AA00000000000030C000000031353035323630373538323800ADDCC100226AEF00000000001200050001001880033C0300190BFB000804BAFF00645866487F28C0"),
+                decoder.decode(null, null, binary("C000000044AA00000000000030DBDC00000031353035323630373538323800ADDCC100226AEF00000000001200050001001880033C0300190BFB000804BAFF00645866487F28C0")));
 
     }
 

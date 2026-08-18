@@ -15,8 +15,12 @@
  */
 package org.traccar.model;
 
-import java.util.Date;
+import org.traccar.storage.StorageName;
 
+import java.util.Date;
+import java.util.Map;
+
+@StorageName("tc_statistics")
 public class Statistics extends ExtendedModel {
 
     private Date captureTime;
@@ -117,6 +121,16 @@ public class Statistics extends ExtendedModel {
 
     public void setGeolocationRequests(int geolocationRequests) {
         this.geolocationRequests = geolocationRequests;
+    }
+
+    private Map<String, Integer> protocols;
+
+    public Map<String, Integer> getProtocols() {
+        return protocols;
+    }
+
+    public void setProtocols(Map<String, Integer> protocols) {
+        this.protocols = protocols;
     }
 
 }

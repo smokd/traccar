@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2025 Anton Tananaev (anton@traccar.org)
  * Copyright 2017 - 2018 Andrey Kunitsyn (andrey@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,103 +16,70 @@
  */
 package org.traccar.notification;
 
-import java.io.StringWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.util.Locale;
-
-import org.apache.velocity.Template;
 import org.apache.velocity.VelocityContext;
-import org.apache.velocity.exception.ResourceNotFoundException;
-import org.apache.velocity.tools.generic.DateTool;
-import org.apache.velocity.tools.generic.NumberTool;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.traccar.Context;
+import org.traccar.database.LocaleManager;
+import org.traccar.helper.model.UserUtil;
 import org.traccar.model.Device;
+import org.traccar.model.Driver;
 import org.traccar.model.Event;
+import org.traccar.model.Geofence;
+import org.traccar.model.Maintenance;
+import org.traccar.model.Notification;
 import org.traccar.model.Position;
+import org.traccar.model.Server;
 import org.traccar.model.User;
-import org.traccar.reports.ReportUtils;
+import org.traccar.session.cache.CacheManager;
 
-public final class NotificationFormatter {
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(NotificationFormatter.class);
+@Singleton
+public class NotificationFormatter {
 
-    private NotificationFormatter() {
+    private final LocaleManager localeManager;
+    private final CacheManager cacheManager;
+    private final TextTemplateFormatter textTemplateFormatter;
+
+    @Inject
+    public NotificationFormatter(
+            LocaleManager localeManager, CacheManager cacheManager, TextTemplateFormatter textTemplateFormatter) {
+        this.localeManager = localeManager;
+        this.cacheManager = cacheManager;
+        this.textTemplateFormatter = textTemplateFormatter;
     }
 
-    public static VelocityContext prepareContext(long userId, Event event, Position position) {
+    public NotificationMessage formatMessage(
+            Notification notification, User user, Event event, Position position) {
 
-        User user = Context.getPermissionsManager().getUser(userId);
-        Device device = Context.getIdentityManager().getById(event.getDeviceId());
+        Server server = cacheManager.getServer();
+        Device device = cacheManager.getObject(Device.class, event.getDeviceId());
 
-        VelocityContext velocityContext = new VelocityContext();
-        velocityContext.put("user", user);
+        VelocityContext velocityContext = textTemplateFormatter.prepareContext(server, user);
+
+        velocityContext.put("notification", notification);
         velocityContext.put("device", device);
         velocityContext.put("event", event);
+        velocityContext.put("translations", localeManager.getBundle(UserUtil.getLanguage(server, user)));
         if (position != null) {
             velocityContext.put("position", position);
-            velocityContext.put("speedUnit", ReportUtils.getSpeedUnit(userId));
-            velocityContext.put("distanceUnit", ReportUtils.getDistanceUnit(userId));
-            velocityContext.put("volumeUnit", ReportUtils.getVolumeUnit(userId));
+            velocityContext.put("speedUnit", UserUtil.getSpeedUnit(server, user));
+            velocityContext.put("distanceUnit", UserUtil.getDistanceUnit(server, user));
+            velocityContext.put("volumeUnit", UserUtil.getVolumeUnit(server, user));
         }
         if (event.getGeofenceId() != 0) {
-            velocityContext.put("geofence", Context.getGeofenceManager().getById(event.getGeofenceId()));
+            velocityContext.put("geofence", cacheManager.getObject(Geofence.class, event.getGeofenceId()));
         }
         if (event.getMaintenanceId() != 0) {
-            velocityContext.put("maintenance", Context.getMaintenancesManager().getById(event.getMaintenanceId()));
+            velocityContext.put("maintenance", cacheManager.getObject(Maintenance.class, event.getMaintenanceId()));
         }
         String driverUniqueId = event.getString(Position.KEY_DRIVER_UNIQUE_ID);
         if (driverUniqueId != null) {
-            velocityContext.put("driver", Context.getDriversManager().getDriverByUniqueId(driverUniqueId));
+            velocityContext.put("driver", cacheManager.getDeviceObjects(device.getId(), Driver.class).stream()
+                    .filter(driver -> driver.getUniqueId().equals(driverUniqueId)).findFirst().orElse(null));
         }
-        velocityContext.put("webUrl", Context.getVelocityEngine().getProperty("web.url"));
-        velocityContext.put("dateTool", new DateTool());
-        velocityContext.put("numberTool", new NumberTool());
-        velocityContext.put("timezone", ReportUtils.getTimezone(userId));
-        velocityContext.put("locale", Locale.getDefault());
-        return velocityContext;
-    }
 
-    public static Template getTemplate(Event event, String path) {
-
-        String templateFilePath;
-        Template template;
-
-        try {
-            templateFilePath = Paths.get(path, event.getType() + ".vm").toString();
-            template = Context.getVelocityEngine().getTemplate(templateFilePath, StandardCharsets.UTF_8.name());
-        } catch (ResourceNotFoundException error) {
-            LOGGER.warn("Notification template error", error);
-            templateFilePath = Paths.get(path, "unknown.vm").toString();
-            template = Context.getVelocityEngine().getTemplate(templateFilePath, StandardCharsets.UTF_8.name());
-        }
-        return template;
-    }
-
-    public static FullMessage formatFullMessage(long userId, Event event, Position position) {
-        VelocityContext velocityContext = prepareContext(userId, event, position);
-        String formattedMessage = formatMessage(velocityContext, userId, event, position, "full");
-
-        return new FullMessage((String) velocityContext.get("subject"), formattedMessage);
-    }
-
-    public static String formatShortMessage(long userId, Event event, Position position) {
-        return formatMessage(null, userId, event, position, "short");
-    }
-
-    private static String formatMessage(VelocityContext vc, Long userId, Event event, Position position,
-            String templatePath) {
-
-        VelocityContext velocityContext = vc;
-        if (velocityContext == null) {
-            velocityContext = prepareContext(userId, event, position);
-        }
-        StringWriter writer = new StringWriter();
-        getTemplate(event, templatePath).merge(velocityContext, writer);
-
-        return writer.toString();
+        boolean priority = notification != null && notification.getBoolean("priority");
+        return textTemplateFormatter.formatMessage(velocityContext, event.getType(), priority);
     }
 
 }

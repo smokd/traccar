@@ -1,6 +1,6 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Position;
 
@@ -9,7 +9,20 @@ public class Gps103ProtocolDecoderTest extends ProtocolTest {
     @Test
     public void testDecode() throws Exception {
 
-        Gps103ProtocolDecoder decoder = new Gps103ProtocolDecoder(null);
+        var decoder = inject(new Gps103ProtocolDecoder(null));
+
+        verifyAttribute(decoder, text(
+                "imei:865456055519122,sensor alarm,2208011920,,L,;"),
+                Position.KEY_ALARM, Position.ALARM_VIBRATION);
+
+        verifyPosition(decoder, text(
+                "imei:864035052942928,,241214083746,100%,F,123746.000,A,1012.63368,N,06757.59559,W,0.00,340.61;"));
+
+        verifyPosition(decoder, text(
+                "imei:864035050002451,tracker,201223064947,,F,064947,A,1935.70640,N,09859.94436,W,0.025,;"));
+
+        verifyPosition(decoder, text(
+                "imei:760112011448012,001,2001151918,,F,191833.000,A,6136.6174,N,2126.9901,E,0.00,202.6,-0.1,1,,,,20;"));
 
         verifyAttribute(decoder, text(
                 "imei:868683023212255,tracker,190205084503,,F,064459.000,A,4915.1221,N,01634.5655,E,3.91,83.95;"),
@@ -149,7 +162,7 @@ public class Gps103ProtocolDecoderTest extends ProtocolTest {
                 "359586015829802"));
 
         // No GPS signal
-        verifyNull(decoder, text(
+        verifyNotNull(decoder, text(
                 "imei:359586015829802,tracker,000000000,13554900601,L,;"));
 
         verifyPosition(decoder, text(

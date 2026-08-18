@@ -1,6 +1,6 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Command;
 
@@ -9,7 +9,7 @@ public class CityeasyProtocolEncoderTest extends ProtocolTest {
     @Test
     public void testEncode() throws Exception {
 
-        CityeasyProtocolEncoder encoder = new CityeasyProtocolEncoder();
+        var encoder = inject(new CityeasyProtocolEncoder(null));
 
         Command command = new Command();
         command.setDeviceId(1);

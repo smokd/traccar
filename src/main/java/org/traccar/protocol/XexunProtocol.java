@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,34 +15,37 @@
  */
 package org.traccar.protocol;
 
-import org.traccar.BaseProtocol;
-import org.traccar.Context;
-import org.traccar.PipelineBuilder;
-import org.traccar.TrackerServer;
-import org.traccar.model.Command;
-
 import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+import org.traccar.BaseProtocol;
+import org.traccar.PipelineBuilder;
+import org.traccar.TrackerServer;
+import org.traccar.config.Config;
+import org.traccar.config.Keys;
+import org.traccar.model.Command;
+
+import jakarta.inject.Inject;
 
 public class XexunProtocol extends BaseProtocol {
 
-    public XexunProtocol() {
+    @Inject
+    public XexunProtocol(Config config) {
         setSupportedDataCommands(
                 Command.TYPE_ENGINE_STOP,
                 Command.TYPE_ENGINE_RESUME);
-        addServer(new TrackerServer(false, getName()) {
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
-                boolean full = Context.getConfig().getBoolean(getName() + ".extended");
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
+                boolean full = config.getBoolean(Keys.PROTOCOL_EXTENDED.withPrefix(getName()));
                 if (full) {
-                    pipeline.addLast(new LineBasedFrameDecoder(1024)); // tracker bug \n\r
+                    pipeline.addLast(new LineBasedFrameDecoder(MAX_FRAME_LENGTH)); // tracker bug \n\r
                 } else {
                     pipeline.addLast(new XexunFrameDecoder());
                 }
                 pipeline.addLast(new StringEncoder());
                 pipeline.addLast(new StringDecoder());
-                pipeline.addLast(new XexunProtocolEncoder());
+                pipeline.addLast(new XexunProtocolEncoder(XexunProtocol.this));
                 pipeline.addLast(new XexunProtocolDecoder(XexunProtocol.this, full));
             }
         });

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,10 +20,15 @@ import io.netty.buffer.Unpooled;
 import org.traccar.BaseProtocolEncoder;
 import org.traccar.helper.Checksum;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 import java.nio.charset.StandardCharsets;
 
 public class GalileoProtocolEncoder extends BaseProtocolEncoder {
+
+    public GalileoProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
 
     private ByteBuf encodeText(String uniqueId, String text) {
 
@@ -53,15 +58,13 @@ public class GalileoProtocolEncoder extends BaseProtocolEncoder {
     @Override
     protected Object encodeCommand(Command command) {
 
-        switch (command.getType()) {
-            case Command.TYPE_CUSTOM:
-                return encodeText(getUniqueId(command.getDeviceId()), command.getString(Command.KEY_DATA));
-            case Command.TYPE_OUTPUT_CONTROL:
-                return encodeText(getUniqueId(command.getDeviceId()),
-                        "Out " + command.getInteger(Command.KEY_INDEX) + "," + command.getString(Command.KEY_DATA));
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_CUSTOM -> encodeText(getUniqueId(command.getDeviceId()),
+                    command.getString(Command.KEY_DATA));
+            case Command.TYPE_OUTPUT_CONTROL -> encodeText(getUniqueId(command.getDeviceId()),
+                    "Out " + command.getInteger(Command.KEY_INDEX) + "," + command.getString(Command.KEY_DATA));
+            default -> null;
+        };
     }
 
 }

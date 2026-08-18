@@ -1,14 +1,35 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
+import org.traccar.model.Position;
 
 public class MegastekProtocolDecoderTest extends ProtocolTest {
 
     @Test
     public void testDecode() throws Exception {
 
-        MegastekProtocolDecoder decoder = new MegastekProtocolDecoder(null);
+        var decoder = inject(new MegastekProtocolDecoder(null));
+
+        verifyPosition(decoder, text(
+                "0323$MGV002,861045082971493,,R,090126,134250,V,5231.64780,N,01323.48837,E,00,00,00,7.682,0.227,116.709,42.5,,262,01,5D8,1922400,20,0000,0000,0,,,,,,01,092,Timer,0268eb529865:50|3ca62f1ff798:63|b8bef41b75a0:64|1ced6f4ad291:72|b4f267537963:76|d2f267537963:76|58d7599127f8:82|32cda7ad09f3:83|485d35090af8:87|b0fc88ab407e:88,,0,,;!"));
+
+        verifyAttribute(decoder, text(
+                "$MGV002,862311065582635,,R,311025,144117,V,5231.64099,N,01323.47200,E,00,00,00,99.9,,,25.7,,262,01,05D8,1924F03,18,,,,,,,,,10,100,Timer,32cda7ad09f3:42|1ced6f4ad291:47|b4f267537963:69|d2f267537963:70|3ca62f1ff798:73|04b4fe4955c7:75|74427f7dce16:77|ea55a82da860:80|30d32d9aec05:82|f086201d99ba:82,,0,,;!"),
+                Position.KEY_BATTERY_LEVEL, 100);
+
+        verifyPosition(decoder, text(
+                "$MGV002,860719020193193,,S,050123,054156,V,2238.26167,N,11401.99217,E,00,00,00,99.9,,,,,460,08,262C,FFC,15,,,,,,,,,100,100,Timer,bc5ff67daf8f:38|9289179f1d46:46|0071cc32f67f:59|a41a3a6ab665:72|ec26ca48faa5:72|a61a3a5ab665:73|fcd733e2c310:75|48a74e34ac58:85|3436543ec64e:85|c8bf4c074f92:87,;!"));
+
+        verifyAttribute(decoder, text(
+                "0226$MGV002,860537065044539,,S,020824,120719,V,5339.11529,N,01011.15575,E,00,00,00,99.9,3.255,,52.1,,262,01,FFFE,277A602,14,000,0000,0000,0,,,,,01000,078,Timer,dc15c8984804:65|50e63698d1d5:70|44053fdacd6e:73|e0516314f2a7:88,,0,,;!"),
+                Position.KEY_BATTERY_LEVEL, 78);
+        
+        verifyPosition(decoder, text(
+                "$MGV002,860719020193193,,S,070521,160748,V,2255.09165,N,11404.01322,E,00,00,00,,,,,,,,,,,,,,,,,,,10,015,Restart;!"));
+
+        verifyPosition(decoder, text(
+                "$MGV002,860719020193193,,R,070621,115717,V,2255.09165,N,11404.01322,E,00,00,00,99.9,,,,,460,07,262C,0F54,20,,,,,,,,,10,039,Timer;!"));
 
         verifyPosition(decoder, text(
                 "0132$MGV002,869152024261561,,S,310818,133945,V,3814.35442,N,02144.50662,E,00,00,00,99.9,,,44.2,,202,10,,,13,0,0,0,0,90,,,,11,100,Timer;!"));
@@ -28,12 +49,19 @@ public class MegastekProtocolDecoderTest extends ProtocolTest {
         verifyNull(decoder, text(
                 "0140$MGV002,354550056642321,GVT900-3,S,300917,071731,V,,,,,00,00,00,99.9,0.000,0.00,,0.0,457,01,0741,00CD,,0000,0000,20,10,0, , ,,1-1,94,PW ON;!"));
 
+        verifyAttribute(decoder, text(
+                "$MGV002,869152024446923,,S,290816,200627,V,5056.21059,N,00439.25034,E,00,00,00,99.9,,,-25.1,,206,01,0BBB,4418,28,,,,,,,,,01,093,PW ON;"),
+                Position.KEY_ALARM, Position.ALARM_POWER_ON);
+
         verifyPosition(decoder, text(
                 "$MGV002,869152024446923,,S,290816,200627,V,5056.21059,N,00439.25034,E,00,00,00,99.9,,,-25.1,,206,01,0BBB,4418,28,,,,,,,,,01,093,Timer;"));
 
         verifyPosition(decoder, text(
                 "$MGV002,869152024446923,869152024446923,S,240816,151631,A,5053.83335,N,00424.05702,E,00,10,00,0.88,2.645,76.09,22.7,,206,01,07D1,6600,28,,,,,,,,,01,100,Timer;!"));
 
+        verifyPosition(decoder, text(
+                "0143$MGV002,869152024261564,,R,220621,120804,V,5152.09429,N,01051.32158,E,00,00,00,99.9,,,,,232,10,A5AE,5A4908,22,0000,0000,0,,,,,,00,093,Timer,,;!"));
+        
         verifyPosition(decoder, text(
                 "STX,013950007137061,$GPRMC,191959.000,A,5203.09602,N,00830.77057,E,5.73,255.27,240716,,,A*62,L,Belt Up,imei:013950007137061,0/5,,Battery=52%,,1,262,03,0084,B20E;FD"));
 
@@ -50,8 +78,19 @@ public class MegastekProtocolDecoderTest extends ProtocolTest {
                 "0125$MGV002,860719020193193,DeviceName,R,240214,104742,A,2238.20471,N,11401.97967,E,00,03,00,1.20,0.462,356.23,137.9,1.5,460,07,262C,0F54,25,0000,0000,0,0,0,28.5,28.3,,,100,Timer;"));
 
         verifyPosition(decoder, text(
+                "0339$MGV002,860719020193193,DeviceName,R,240214,104742,A,2238.20471,N,11401.97967,E,00,03,00,1.20,0.462,356.23,137.9,1.5,460,07,262C,0F54,25,0000,0000,0,0,0,28.5,28.3,,10,100,Timer,18339df945d0:53|108c0fb0a2f1:57|e46f133d6f5c:59|108ccf109f21:59|8adc963d752a:82|04c5a48cc6c0:82|9adc963d752a:83|8800b0b00004:85|90671c80e2fc:85|80c5e68c8d36:86,;!"));
+
+        verifyPosition(decoder, text(
                 "$MGV002,860719020193193,DeviceName,R,240214,104742,A,2238.20471,N,11401.97967,E,00,03,00,1.20,0.462,356.23,137.9,1.5,460,07,262C,0F54,25,0000,0000,0,0,0,28.5,28.3,,,100,Timer;!"),
                 position("2014-02-24 10:47:42.000", true, 22.63675, 114.03299));
+
+        verifyAttribute(decoder, text(
+                "$MGV002,860719020193193,DeviceName,R,240214,104742,A,2238.20471,N,11401.97967,E,00,03,00,1.20,0.462,356.23,137.9,1.5,460,07,262C,0F54,25,0000,0000,0,0,0,28.5,28.3,,10,100,Timer;!"),
+                Position.KEY_CHARGE, true);
+
+        verifyAttribute(decoder, text(
+                "$MGV002,860719020193193,DeviceName,R,240214,104742,A,2238.20471,N,11401.97967,E,00,03,00,1.20,0.462,356.23,137.9,1.5,460,07,262C,0F54,25,0000,0000,0,0,0,28.5,28.3,,02,100,Timer;!"),
+                "belt", 2);
 
         verifyPosition(decoder, text(
                 "STX2010101801      j$GPRMC,101053.000,A,2232.7607,N,11404.7669,E,0.00,,231110,,,A*7F,460,00,2795,0E6A,14,94,1000,0000,91,Timer;1D"));

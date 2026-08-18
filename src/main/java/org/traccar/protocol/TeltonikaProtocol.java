@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,25 +18,31 @@ package org.traccar.protocol;
 import org.traccar.BaseProtocol;
 import org.traccar.PipelineBuilder;
 import org.traccar.TrackerServer;
+import org.traccar.config.Config;
 import org.traccar.model.Command;
+
+import jakarta.inject.Inject;
 
 public class TeltonikaProtocol extends BaseProtocol {
 
-    public TeltonikaProtocol() {
+    @Inject
+    public TeltonikaProtocol(Config config) {
         setSupportedDataCommands(
-                Command.TYPE_CUSTOM);
-        addServer(new TrackerServer(false, getName()) {
+                Command.TYPE_CUSTOM,
+                Command.TYPE_ENGINE_STOP,
+                Command.TYPE_ENGINE_RESUME);
+        addServer(new TrackerServer(config, getName(), false) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
                 pipeline.addLast(new TeltonikaFrameDecoder());
-                pipeline.addLast(new TeltonikaProtocolEncoder());
+                pipeline.addLast(new TeltonikaProtocolEncoder(TeltonikaProtocol.this));
                 pipeline.addLast(new TeltonikaProtocolDecoder(TeltonikaProtocol.this, false));
             }
         });
-        addServer(new TrackerServer(true, getName()) {
+        addServer(new TrackerServer(config, getName(), true) {
             @Override
-            protected void addProtocolHandlers(PipelineBuilder pipeline) {
-                pipeline.addLast(new TeltonikaProtocolEncoder());
+            protected void addProtocolHandlers(PipelineBuilder pipeline, Config config) {
+                pipeline.addLast(new TeltonikaProtocolEncoder(TeltonikaProtocol.this));
                 pipeline.addLast(new TeltonikaProtocolDecoder(TeltonikaProtocol.this, true));
             }
         });

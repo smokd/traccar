@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2019 Anton Tananaev (anton@traccar.org)
  * Copyright 2017 Anatoliy Golubev (darth.naihil@gmail.com)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,18 +16,18 @@
  */
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Command;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class AdmProtocolEncoderTest extends ProtocolTest {
 
     @Test
     public void testEncode() throws Exception {
 
-        AdmProtocolEncoder encoder = new AdmProtocolEncoder();
+        var encoder = inject(new AdmProtocolEncoder(null));
 
         Command command = new Command();
         command.setDeviceId(1);

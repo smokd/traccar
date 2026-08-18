@@ -18,10 +18,11 @@ package org.traccar.protocol;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
+import org.traccar.helper.ObdDecoder;
 import org.traccar.helper.UnitsConverter;
 import org.traccar.model.Position;
 
@@ -57,23 +58,18 @@ public class NyitechProtocolDecoder extends BaseProtocolDecoder {
         position.setLongitude(BitUtil.check(flags, 3) ? lon : -lon);
 
         position.setSpeed(UnitsConverter.knotsFromCps(buf.readUnsignedShortLE()));
-        position.setCourse(buf.readUnsignedShortLE() * 0.1);
-        position.setAltitude(buf.readShortLE() * 0.1);
+        position.setCourse(buf.readUnsignedShortLE() / 10.0);
+        position.setAltitude(buf.readShortLE() / 10.0);
     }
 
     private String decodeAlarm(int type) {
-        switch (type) {
-            case 0x09:
-                return Position.ALARM_ACCELERATION;
-            case 0x0a:
-                return Position.ALARM_BRAKING;
-            case 0x0b:
-                return Position.ALARM_CORNERING;
-            case 0x0e:
-                return Position.ALARM_SOS;
-            default:
-                return null;
-        }
+        return switch (type) {
+            case 0x09 -> Position.ALARM_ACCELERATION;
+            case 0x0a -> Position.ALARM_BRAKING;
+            case 0x0b -> Position.ALARM_CORNERING;
+            case 0x0e -> Position.ALARM_SOS;
+            default -> null;
+        };
     }
 
     @Override
@@ -102,20 +98,58 @@ public class NyitechProtocolDecoder extends BaseProtocolDecoder {
         position.setDeviceId(deviceSession.getDeviceId());
 
         if (type == MSG_COMPREHENSIVE_LIVE || type == MSG_COMPREHENSIVE_HISTORY) {
+
             buf.skipBytes(6); // time
-            buf.skipBytes(3); // data
+            boolean includeLocation = buf.readUnsignedByte() > 0;
+            boolean includeObd = buf.readUnsignedByte() > 0;
+            buf.readUnsignedByte(); // include sensor
+
+            if (includeLocation) {
+                decodeLocation(position, buf);
+            } else {
+                getLastLocation(position, null);
+            }
+
+            if (includeObd) {
+                int count = buf.readUnsignedByte();
+                for (int i = 0; i < count; i++) {
+                    int pid = buf.readUnsignedShortLE();
+                    int length = buf.readUnsignedByte();
+                    switch (length) {
+                        case 1 -> position.add(ObdDecoder.decodeData(pid, buf.readByte(), true));
+                        case 2 -> position.add(ObdDecoder.decodeData(pid, buf.readShortLE(), true));
+                        case 4 -> position.add(ObdDecoder.decodeData(pid, buf.readIntLE(), true));
+                        default -> buf.skipBytes(length);
+                    }
+                }
+            }
+
+            position.set(Position.KEY_FUEL_USED, buf.readUnsignedInt() / 100.0);
+            position.set(Position.KEY_ODOMETER_TRIP, buf.readUnsignedInt());
+
+
         } else if (type == MSG_ALARM) {
+
             buf.readUnsignedShortLE(); // random number
             buf.readUnsignedByte(); // tag
-            position.set(Position.KEY_ALARM, decodeAlarm(buf.readUnsignedByte()));
+            position.addAlarm(decodeAlarm(buf.readUnsignedByte()));
             buf.readUnsignedShortLE(); // threshold
             buf.readUnsignedShortLE(); // value
             buf.skipBytes(6); // time
-        } else if (type == MSG_FIXED) {
-            buf.skipBytes(6); // time
-        }
 
-        decodeLocation(position, buf);
+            decodeLocation(position, buf);
+
+        } else if (type == MSG_FIXED) {
+
+            buf.skipBytes(6); // time
+
+            decodeLocation(position, buf);
+
+        } else {
+
+            decodeLocation(position, buf);
+
+        }
 
         return position;
     }

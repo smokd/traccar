@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,8 +21,13 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.traccar.BaseProtocolEncoder;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 public class GranitProtocolEncoder extends BaseProtocolEncoder {
+
+    public GranitProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
 
     private ByteBuf encodeCommand(String commandString) {
         ByteBuf buffer = Unpooled.buffer();
@@ -33,16 +38,12 @@ public class GranitProtocolEncoder extends BaseProtocolEncoder {
 
     @Override
     protected Object encodeCommand(Command command) {
-        switch (command.getType()) {
-            case Command.TYPE_IDENTIFICATION:
-                return encodeCommand("BB+IDNT");
-            case Command.TYPE_REBOOT_DEVICE:
-                return encodeCommand("BB+RESET");
-            case Command.TYPE_POSITION_SINGLE:
-                return encodeCommand("BB+RRCD");
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_IDENTIFICATION -> encodeCommand("BB+IDNT");
+            case Command.TYPE_REBOOT_DEVICE -> encodeCommand("BB+RESET");
+            case Command.TYPE_POSITION_SINGLE -> encodeCommand("BB+RRCD");
+            default -> null;
+        };
     }
 
 }

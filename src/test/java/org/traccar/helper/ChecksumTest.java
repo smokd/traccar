@@ -2,11 +2,12 @@ package org.traccar.helper;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class ChecksumTest {
 
@@ -31,9 +32,29 @@ public class ChecksumTest {
     }
 
     @Test
+    public void testCrc32() {
+        ByteBuf buf = Unpooled.copiedBuffer("123456789", StandardCharsets.US_ASCII);
+
+        assertEquals(0xcbf43926, Checksum.crc32(Checksum.CRC32_STANDARD, buf.nioBuffer()));
+        assertEquals(0x0376e6e7, Checksum.crc32(Checksum.CRC32_MPEG2, buf.nioBuffer()));
+    }
+
+    @Test
     public void testLuhn() {
         assertEquals(7, Checksum.luhn(12345678901234L));
         assertEquals(0, Checksum.luhn(63070019470771L));
+    }
+
+    @Test
+    public void testModulo256() {
+        assertEquals(0x00, Checksum.modulo256(ByteBuffer.wrap(new byte[] {0x00})));
+        assertEquals(0x00, Checksum.modulo256(ByteBuffer.wrap(new byte[] {0x00, 0x00, 0x00})));
+        assertEquals(0xca, Checksum.modulo256(ByteBuffer.wrap(new byte[] {0x77, 0x77, 0x77, 0x77, 0x77, 0x77})));
+    }
+
+    @Test
+    public void testNmea() {
+        assertEquals("*2A", Checksum.nmea("GSC,011412000010789,M4(Ro=500)"));
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +17,22 @@ package org.traccar.protocol;
 
 import org.traccar.StringProtocolEncoder;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 public class XirgoProtocolEncoder extends StringProtocolEncoder {
+
+    public XirgoProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
 
     @Override
     protected Object encodeCommand(Command command) {
 
-        switch (command.getType()) {
-            case Command.TYPE_OUTPUT_CONTROL:
-                return String.format("+XT:7005,%d,1", command.getInteger(Command.KEY_DATA) + 1);
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_OUTPUT_CONTROL ->
+                    String.format("+XT:7005,%d,1", command.getInteger(Command.KEY_DATA) + 1);
+            default -> null;
+        };
     }
 
 }

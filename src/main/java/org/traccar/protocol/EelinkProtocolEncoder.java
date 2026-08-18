@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2019 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import io.netty.buffer.Unpooled;
 import org.traccar.BaseProtocolEncoder;
 import org.traccar.helper.DataConverter;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +29,8 @@ public class EelinkProtocolEncoder extends BaseProtocolEncoder {
 
     private boolean connectionless;
 
-    public EelinkProtocolEncoder(boolean connectionless) {
+    public EelinkProtocolEncoder(Protocol protocol, boolean connectionless) {
+        super(protocol);
         this.connectionless = connectionless;
     }
 
@@ -88,20 +90,14 @@ public class EelinkProtocolEncoder extends BaseProtocolEncoder {
     @Override
     protected Object encodeCommand(Command command) {
 
-        switch (command.getType()) {
-            case Command.TYPE_CUSTOM:
-                return encodeContent(command.getDeviceId(), command.getString(Command.KEY_DATA));
-            case Command.TYPE_POSITION_SINGLE:
-                return encodeContent(command.getDeviceId(), "WHERE#");
-            case Command.TYPE_ENGINE_STOP:
-                return encodeContent(command.getDeviceId(), "RELAY,1#");
-            case Command.TYPE_ENGINE_RESUME:
-                return encodeContent(command.getDeviceId(), "RELAY,0#");
-            case Command.TYPE_REBOOT_DEVICE:
-                return encodeContent(command.getDeviceId(), "RESET#");
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_CUSTOM -> encodeContent(command.getDeviceId(), command.getString(Command.KEY_DATA));
+            case Command.TYPE_POSITION_SINGLE -> encodeContent(command.getDeviceId(), "WHERE#");
+            case Command.TYPE_ENGINE_STOP -> encodeContent(command.getDeviceId(), "RELAY,1#");
+            case Command.TYPE_ENGINE_RESUME -> encodeContent(command.getDeviceId(), "RELAY,0#");
+            case Command.TYPE_REBOOT_DEVICE -> encodeContent(command.getDeviceId(), "RESET#");
+            default -> null;
+        };
     }
 
 }

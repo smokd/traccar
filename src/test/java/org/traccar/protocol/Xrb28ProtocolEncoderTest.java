@@ -1,31 +1,31 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Command;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class Xrb28ProtocolEncoderTest extends ProtocolTest {
 
     @Test
-    public void testEncodePositionPeriodic() {
+    public void testEncodePositionPeriodic() throws Exception {
 
-        Xrb28ProtocolEncoder encoder = new Xrb28ProtocolEncoder();
-        
+        var encoder = inject(new Xrb28ProtocolEncoder(null));
+
         Command command = new Command();
         command.setDeviceId(1);
         command.setType(Command.TYPE_POSITION_PERIODIC);
         command.set(Command.KEY_FREQUENCY, 300);
-        
+
         assertEquals("\u00ff\u00ff*SCOS,OM,123456789012345,D1,300#\n", encoder.encodeCommand(null, command));
 
     }
 
     @Test
-    public void testEncodeCustom() {
+    public void testEncodeCustom() throws Exception {
 
-        Xrb28ProtocolEncoder encoder = new Xrb28ProtocolEncoder();
+        var encoder = inject(new Xrb28ProtocolEncoder(null));
 
         Command command = new Command();
         command.setDeviceId(1);

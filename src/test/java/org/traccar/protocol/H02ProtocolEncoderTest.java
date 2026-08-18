@@ -1,6 +1,7 @@
 package org.traccar.protocol;
 
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.traccar.ProtocolTest;
 import org.traccar.model.Command;
 
@@ -10,16 +11,21 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.Date;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class H02ProtocolEncoderTest extends ProtocolTest {
 
-    private H02ProtocolEncoder encoder = new H02ProtocolEncoder();
-    private Date time = Date.from(
+    private H02ProtocolEncoder encoder;
+    private final Date time = Date.from(
             LocalDateTime.of(LocalDate.now(), LocalTime.of(1, 2, 3)).atZone(ZoneOffset.systemDefault()).toInstant());
 
+    @BeforeEach
+    public void before() throws Exception {
+        encoder = inject(new H02ProtocolEncoder(null));
+    }
+
     @Test
-    public void testAlarmArmEncode() throws Exception {
+    public void testAlarmArmEncode() {
 
         Command command = new Command();
         command.setDeviceId(1);
@@ -29,7 +35,7 @@ public class H02ProtocolEncoderTest extends ProtocolTest {
     }
 
     @Test
-    public void testAlarmDisarmEncode() throws Exception {
+    public void testAlarmDisarmEncode() {
 
         Command command = new Command();
         command.setDeviceId(1);
@@ -39,7 +45,7 @@ public class H02ProtocolEncoderTest extends ProtocolTest {
     }
 
     @Test
-    public void testEngineStopEncode() throws Exception {
+    public void testEngineStopEncode() {
 
         Command command = new Command();
         command.setDeviceId(1);
@@ -49,7 +55,7 @@ public class H02ProtocolEncoderTest extends ProtocolTest {
     }
 
     @Test
-    public void testEngineResumeEncode() throws Exception {
+    public void testEngineResumeEncode() {
 
         Command command = new Command();
         command.setDeviceId(1);
@@ -59,7 +65,7 @@ public class H02ProtocolEncoderTest extends ProtocolTest {
     }
 
     @Test
-    public void testPositionPeriodicEncode() throws Exception {
+    public void testPositionPeriodicEncode() {
 
         Command command = new Command();
         command.setDeviceId(1);

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandlerContext;
 import org.traccar.BaseFrameDecoder;
+import org.traccar.BaseProtocol;
 import org.traccar.helper.BufferUtil;
 
 import java.nio.charset.StandardCharsets;
@@ -26,6 +27,10 @@ import java.nio.charset.StandardCharsets;
 public class AtrackFrameDecoder extends BaseFrameDecoder {
 
     private static final int KEEPALIVE_LENGTH = 12;
+
+    public AtrackFrameDecoder() {
+        super(BaseProtocol.MAX_FRAME_LENGTH_LARGE);
+    }
 
     @Override
     protected Object decode(
@@ -39,7 +44,7 @@ public class AtrackFrameDecoder extends BaseFrameDecoder {
                     return buf.readRetainedSlice(KEEPALIVE_LENGTH);
                 }
 
-            } else if (buf.getUnsignedShort(buf.readerIndex()) == 0x4050 && buf.getByte(buf.readerIndex() + 2) != ',') {
+            } else if (buf.getUnsignedByte(buf.readerIndex()) == 0x40 && buf.getByte(buf.readerIndex() + 2) != ',') {
 
                 if (buf.readableBytes() > 6) {
                     int length = buf.getUnsignedShort(buf.readerIndex() + 4) + 4 + 2;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016 Anton Tananaev (anton@traccar.org)
+ * Copyright 2016 - 2019 Anton Tananaev (anton@traccar.org)
  * Copyright 2016 Andrey Kunitsyn (andrey@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,23 +18,24 @@ package org.traccar.protocol;
 
 import org.traccar.StringProtocolEncoder;
 import org.traccar.model.Command;
+import org.traccar.Protocol;
 
 public class WialonProtocolEncoder extends StringProtocolEncoder {
 
+    public WialonProtocolEncoder(Protocol protocol) {
+        super(protocol);
+    }
+
     @Override
     protected Object encodeCommand(Command command) {
-        switch (command.getType()) {
-            case Command.TYPE_REBOOT_DEVICE:
-                return formatCommand(command, "reboot\r\n");
-            case Command.TYPE_SEND_USSD:
-                return formatCommand(command, "USSD:{%s}\r\n", Command.KEY_PHONE);
-            case Command.TYPE_IDENTIFICATION:
-                return formatCommand(command, "VER?\r\n");
-            case Command.TYPE_OUTPUT_CONTROL:
-                return formatCommand(command, "L{%s}={%s}\r\n", Command.KEY_INDEX, Command.KEY_DATA);
-            default:
-                return null;
-        }
+        return switch (command.getType()) {
+            case Command.TYPE_REBOOT_DEVICE -> formatCommand(command, "reboot\r\n");
+            case Command.TYPE_SEND_USSD -> formatCommand(command, "USSD:%s\r\n", Command.KEY_PHONE);
+            case Command.TYPE_IDENTIFICATION -> formatCommand(command, "VER?\r\n");
+            case Command.TYPE_OUTPUT_CONTROL ->
+                    formatCommand(command, "L%s=%s\r\n", Command.KEY_INDEX, Command.KEY_DATA);
+            default -> null;
+        };
     }
 
 }

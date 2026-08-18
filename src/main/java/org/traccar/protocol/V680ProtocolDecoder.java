@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.DateBuilder;
 import org.traccar.helper.Parser;
@@ -62,7 +62,7 @@ public class V680ProtocolDecoder extends BaseProtocolDecoder {
 
         if (sentence.length() == 16) {
 
-            getDeviceSession(channel, remoteAddress, sentence.substring(1, sentence.length()));
+            getDeviceSession(channel, remoteAddress, sentence.substring(1));
 
         } else {
 
@@ -97,11 +97,11 @@ public class V680ProtocolDecoder extends BaseProtocolDecoder {
             boolean south = parser.next().equals("S");
 
             if (lat > 90 || lon > 180) {
-                int lonDegrees = (int) (lon * 0.01);
+                int lonDegrees = (int) (lon / 100.0);
                 lon = (lon - lonDegrees * 100) / 60.0;
                 lon += lonDegrees;
 
-                int latDegrees = (int) (lat * 0.01);
+                int latDegrees = (int) (lat / 100.0);
                 lat = (lat - latDegrees * 100) / 60.0;
                 lat += latDegrees;
             }

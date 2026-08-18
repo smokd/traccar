@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.Checksum;
@@ -69,7 +69,8 @@ public class GpsGateProtocolDecoder extends BaseProtocolDecoder {
 
     private void send(Channel channel, SocketAddress remoteAddress, String message) {
         if (channel != null) {
-            channel.writeAndFlush(new NetworkMessage(message + Checksum.nmea(message) + "\r\n", remoteAddress));
+            channel.writeAndFlush(new NetworkMessage(
+                    message + Checksum.nmea(message.substring(1)) + "\r\n", remoteAddress));
         }
     }
 

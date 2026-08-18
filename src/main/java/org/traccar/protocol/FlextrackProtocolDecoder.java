@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.NetworkMessage;
 import org.traccar.Protocol;
 import org.traccar.helper.Parser;
@@ -128,7 +128,7 @@ public class FlextrackProtocolDecoder extends BaseProtocolDecoder {
 
             position.setAltitude(parser.nextInt(0));
 
-            position.set(Position.KEY_HDOP, parser.nextInt(0) * 0.1);
+            position.set(Position.KEY_HDOP, parser.nextInt(0) / 10.0);
 
             position.setNetwork(new Network(CellTower.from(
                     mcc, mnc, parser.nextHexInt(0), parser.nextHexInt(0), rssi)));

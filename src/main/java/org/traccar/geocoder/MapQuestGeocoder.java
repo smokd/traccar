@@ -1,6 +1,6 @@
 /*
  * Copyright 2014 - 2015 Stefaan Van Dooren (stefaan.vandooren@gmail.com)
- * Copyright 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2017 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,13 +16,23 @@
  */
 package org.traccar.geocoder;
 
-import javax.json.JsonArray;
-import javax.json.JsonObject;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonObject;
+import jakarta.ws.rs.client.Client;
+import java.util.Locale;
 
 public class MapQuestGeocoder extends JsonGeocoder {
 
-    public MapQuestGeocoder(String url, String key, int cacheSize, AddressFormat addressFormat) {
-        super(url + "?key=" + key + "&location=%f,%f", cacheSize, addressFormat);
+    private static String formatUrl(String url, String key) {
+        if (url == null) {
+            url = "http://www.mapquestapi.com/geocoding/v1/reverse";
+        }
+        url += "?key=" + key + "&location=%f,%f";
+        return url;
+    }
+
+    public MapQuestGeocoder(Client client, String url, String key, int cacheSize, AddressFormat addressFormat) {
+        super(client, formatUrl(url, key), cacheSize, addressFormat);
     }
 
     @Override
@@ -48,7 +58,7 @@ public class MapQuestGeocoder extends JsonGeocoder {
                     address.setState(location.getString("adminArea3"));
                 }
                 if (location.containsKey("adminArea1")) {
-                    address.setCountry(location.getString("adminArea1").toUpperCase());
+                    address.setCountry(location.getString("adminArea1").toUpperCase(Locale.ROOT));
                 }
                 if (location.containsKey("postalCode")) {
                     address.setPostcode(location.getString("postalCode"));

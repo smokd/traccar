@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2017 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2022 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,14 @@
  */
 package org.traccar.model;
 
-import org.traccar.database.QueryIgnore;
+import org.traccar.storage.QueryIgnore;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.traccar.storage.StorageName;
 
+@StorageName("tc_commands")
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Command extends Message implements Cloneable {
+public class Command extends BaseCommand {
 
     public static final String TYPE_CUSTOM = "custom";
     public static final String TYPE_IDENTIFICATION = "deviceIdentification";
@@ -31,10 +33,12 @@ public class Command extends Message implements Cloneable {
     public static final String TYPE_ENGINE_RESUME = "engineResume";
     public static final String TYPE_ALARM_ARM = "alarmArm";
     public static final String TYPE_ALARM_DISARM = "alarmDisarm";
+    public static final String TYPE_ALARM_DISMISS = "alarmDismiss";
     public static final String TYPE_SET_TIMEZONE = "setTimezone";
     public static final String TYPE_REQUEST_PHOTO = "requestPhoto";
     public static final String TYPE_POWER_OFF = "powerOff";
     public static final String TYPE_REBOOT_DEVICE = "rebootDevice";
+    public static final String TYPE_FACTORY_RESET = "factoryReset";
     public static final String TYPE_SEND_SMS = "sendSms";
     public static final String TYPE_SEND_USSD = "sendUssd";
     public static final String TYPE_SOS_NUMBER = "sosNumber";
@@ -53,11 +57,13 @@ public class Command extends Message implements Cloneable {
     public static final String TYPE_SET_ODOMETER = "setOdometer";
     public static final String TYPE_GET_MODEM_STATUS = "getModemStatus";
     public static final String TYPE_GET_DEVICE_STATUS = "getDeviceStatus";
-
+    public static final String TYPE_SET_SPEED_LIMIT = "setSpeedLimit";
     public static final String TYPE_MODE_POWER_SAVING = "modePowerSaving";
     public static final String TYPE_MODE_DEEP_SLEEP = "modeDeepSleep";
+    public static final String TYPE_VIDEO_START = "videoStart";
+    public static final String TYPE_VIDEO_STOP = "videoStop";
 
-    public static final String TYPE_ALARM_GEOFENCE = "movementAlarm";
+    public static final String TYPE_ALARM_GEOFENCE = "alarmGeofence";
     public static final String TYPE_ALARM_BATTERY = "alarmBattery";
     public static final String TYPE_ALARM_SOS = "alarmSos";
     public static final String TYPE_ALARM_REMOVE = "alarmRemove";
@@ -68,6 +74,7 @@ public class Command extends Message implements Cloneable {
 
     public static final String KEY_UNIQUE_ID = "uniqueId";
     public static final String KEY_FREQUENCY = "frequency";
+    public static final String KEY_LANGUAGE = "language";
     public static final String KEY_TIMEZONE = "timezone";
     public static final String KEY_DEVICE_PASSWORD = "devicePassword";
     public static final String KEY_RADIUS = "radius";
@@ -78,26 +85,18 @@ public class Command extends Message implements Cloneable {
     public static final String KEY_PHONE = "phone";
     public static final String KEY_SERVER = "server";
     public static final String KEY_PORT = "port";
-
-    @Override
-    public Command clone() throws CloneNotSupportedException {
-        return (Command) super.clone();
-    }
-
-    private boolean textChannel;
-
-    public boolean getTextChannel() {
-        return textChannel;
-    }
-
-    public void setTextChannel(boolean textChannel) {
-        this.textChannel = textChannel;
-    }
+    public static final String KEY_NO_QUEUE = "noQueue";
 
     @QueryIgnore
     @Override
     public long getDeviceId() {
         return super.getDeviceId();
+    }
+
+    @QueryIgnore
+    @Override
+    public void setDeviceId(long deviceId) {
+        super.setDeviceId(deviceId);
     }
 
     private String description;

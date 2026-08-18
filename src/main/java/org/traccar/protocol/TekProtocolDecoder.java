@@ -19,7 +19,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
@@ -69,7 +69,7 @@ public class TekProtocolDecoder extends BaseProtocolDecoder {
         buf.readUnsignedByte(); // rssi
         buf.readUnsignedByte(); // battery / status
 
-        String imei = ByteBufUtil.hexDump(buf.readBytes(8)).substring(1);
+        String imei = ByteBufUtil.hexDump(buf.readSlice(8)).substring(1);
         DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, imei);
         if (deviceSession == null) {
             return null;

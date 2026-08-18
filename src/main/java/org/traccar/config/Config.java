@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 - 2019 Anton Tananaev (anton@traccar.org)
+ * Copyright 2015 - 2024 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,59 +15,68 @@
  */
 package org.traccar.config;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.inject.name.Named;
+import org.traccar.helper.Log;
+
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.InvalidPropertiesFormatException;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Properties;
 
+@Singleton
 public class Config {
 
     private final Properties properties = new Properties();
 
     private boolean useEnvironmentVariables;
 
-    public Config() {
-    }
+    public Config() {}
 
-    public Config(String file) throws IOException {
+    @Inject
+    public Config(@Named("configFile") String file) throws IOException {
         try {
-            Properties mainProperties = new Properties();
             try (InputStream inputStream = new FileInputStream(file)) {
-                mainProperties.loadFromXML(inputStream);
+                properties.loadFromXML(inputStream);
             }
-
-            String defaultConfigFile = mainProperties.getProperty("config.default");
-            if (defaultConfigFile != null) {
-                try (InputStream inputStream = new FileInputStream(defaultConfigFile)) {
-                    properties.loadFromXML(inputStream);
-                }
-            }
-
-            properties.putAll(mainProperties); // override defaults
 
             useEnvironmentVariables = Boolean.parseBoolean(System.getenv("CONFIG_USE_ENVIRONMENT_VARIABLES"))
                     || Boolean.parseBoolean(properties.getProperty("config.useEnvironmentVariables"));
+
+            Log.setupLogger(this);
         } catch (InvalidPropertiesFormatException e) {
+            Log.setupDefaultLogger();
             throw new RuntimeException("Configuration file is not a valid XML document", e);
+        } catch (Exception e) {
+            Log.setupDefaultLogger();
+            throw e;
         }
     }
 
-    public boolean hasKey(ConfigKey key) {
+    public boolean hasKey(ConfigKey<?> key) {
         return hasKey(key.getKey());
     }
 
-    @Deprecated
-    public boolean hasKey(String key) {
+    private boolean hasKey(String key) {
         return useEnvironmentVariables && System.getenv().containsKey(getEnvironmentVariableName(key))
                 || properties.containsKey(key);
     }
 
-    public String getString(ConfigKey key) {
-        return getString(key.getKey());
+    public String getString(ConfigKey<String> key) {
+        String value = getString(key.getKey());
+        return value != null ? value : key.getDefaultValue();
     }
 
-    @Deprecated
+    public String getString(ConfigKey<String> key, String defaultValue) {
+        String value = getString(key.getKey());
+        return value != null ? value : defaultValue;
+    }
+
     public String getString(String key) {
         if (useEnvironmentVariables) {
             String value = System.getenv(getEnvironmentVariableName(key));
@@ -78,89 +87,58 @@ public class Config {
         return properties.getProperty(key);
     }
 
-    public String getString(ConfigKey key, String defaultValue) {
-        return getString(key.getKey(), defaultValue);
+    public boolean getBoolean(ConfigKey<Boolean> key) {
+        String value = getString(key.getKey());
+        if (value != null) {
+            return Boolean.parseBoolean(value);
+        } else {
+            Boolean defaultValue = key.getDefaultValue();
+            return Objects.requireNonNullElse(defaultValue, false);
+        }
     }
 
-    @Deprecated
-    public String getString(String key, String defaultValue) {
-        return hasKey(key) ? getString(key) : defaultValue;
+    public int getInteger(ConfigKey<Integer> key) {
+        String value = getString(key.getKey());
+        if (value != null) {
+            return Integer.parseInt(value);
+        } else {
+            Integer defaultValue = key.getDefaultValue();
+            return Objects.requireNonNullElse(defaultValue, 0);
+        }
     }
 
-    public boolean getBoolean(ConfigKey key) {
-        return getBoolean(key.getKey());
+    public int getInteger(ConfigKey<Integer> key, int defaultValue) {
+        String value = getString(key.getKey());
+        return value != null ? Integer.parseInt(value) : defaultValue;
     }
 
-    @Deprecated
-    public boolean getBoolean(String key) {
-        return Boolean.parseBoolean(getString(key));
+    public long getLong(ConfigKey<Long> key) {
+        String value = getString(key.getKey());
+        if (value != null) {
+            return Long.parseLong(value);
+        } else {
+            Long defaultValue = key.getDefaultValue();
+            return Objects.requireNonNullElse(defaultValue, 0L);
+        }
     }
 
-    public int getInteger(ConfigKey key) {
-        return getInteger(key.getKey());
+    public double getDouble(ConfigKey<Double> key) {
+        String value = getString(key.getKey());
+        if (value != null) {
+            return Double.parseDouble(value);
+        } else {
+            Double defaultValue = key.getDefaultValue();
+            return Objects.requireNonNullElse(defaultValue, 0.0);
+        }
     }
 
-    @Deprecated
-    public int getInteger(String key) {
-        return getInteger(key, 0);
-    }
-
-    public int getInteger(ConfigKey key, int defaultValue) {
-        return getInteger(key.getKey(), defaultValue);
-    }
-
-    @Deprecated
-    public int getInteger(String key, int defaultValue) {
-        return hasKey(key) ? Integer.parseInt(getString(key)) : defaultValue;
-    }
-
-    public long getLong(ConfigKey key) {
-        return getLong(key.getKey());
-    }
-
-    @Deprecated
-    public long getLong(String key) {
-        return getLong(key, 0);
-    }
-
-    public long getLong(ConfigKey key, long defaultValue) {
-        return getLong(key.getKey(), defaultValue);
-    }
-
-    @Deprecated
-    public long getLong(String key, long defaultValue) {
-        return hasKey(key) ? Long.parseLong(getString(key)) : defaultValue;
-    }
-
-    public double getDouble(ConfigKey key) {
-        return getDouble(key.getKey());
-    }
-
-    @Deprecated
-    public double getDouble(String key) {
-        return getDouble(key, 0.0);
-    }
-
-    public double getDouble(ConfigKey key, double defaultValue) {
-        return getDouble(key.getKey(), defaultValue);
-    }
-
-    @Deprecated
-    public double getDouble(String key, double defaultValue) {
-        return hasKey(key) ? Double.parseDouble(getString(key)) : defaultValue;
-    }
-
-    public void setString(ConfigKey key, String value) {
-        setString(key.getKey(), value);
-    }
-
-    @Deprecated
-    public void setString(String key, String value) {
-        properties.put(key, value);
+    @VisibleForTesting
+    public void setString(ConfigKey<?> key, String value) {
+        properties.put(key.getKey(), value);
     }
 
     static String getEnvironmentVariableName(String key) {
-        return key.replaceAll("\\.", "_").replaceAll("(\\p{Lu})", "_$1").toUpperCase();
+        return key.replaceAll("\\.", "_").replaceAll("(\\p{Lu})", "_$1").toUpperCase(Locale.ROOT);
     }
 
 }

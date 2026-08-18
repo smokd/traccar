@@ -17,7 +17,7 @@ package org.traccar.protocol;
 
 import io.netty.channel.Channel;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
 import org.traccar.helper.Parser;
 import org.traccar.helper.PatternBuilder;
@@ -99,8 +99,8 @@ public class M2cProtocolDecoder extends BaseProtocolDecoder {
         position.set(Position.KEY_ODOMETER, parser.nextLong());
         position.set(Position.KEY_INPUT, parser.nextInt());
         position.set(Position.KEY_OUTPUT, parser.nextInt());
-        position.set(Position.KEY_POWER, parser.nextInt() * 0.001);
-        position.set(Position.KEY_BATTERY, parser.nextInt() * 0.001);
+        position.set(Position.KEY_POWER, parser.nextInt() / 1000.0);
+        position.set(Position.KEY_BATTERY, parser.nextInt() / 1000.0);
         position.set(Position.PREFIX_ADC + 1, parser.nextInt());
         position.set(Position.PREFIX_ADC + 2, parser.nextInt());
         position.set(Position.PREFIX_TEMP + 1, parser.nextDouble());

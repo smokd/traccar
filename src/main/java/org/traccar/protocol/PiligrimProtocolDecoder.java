@@ -1,5 +1,5 @@
 /*
- * Copyright 2014 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2014 - 2022 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,43 +18,52 @@ package org.traccar.protocol;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
-import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.QueryStringDecoder;
-import org.traccar.BaseProtocolDecoder;
-import org.traccar.DeviceSession;
-import org.traccar.NetworkMessage;
+import org.traccar.BaseHttpProtocolDecoder;
 import org.traccar.Protocol;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
+import org.traccar.helper.Parser;
+import org.traccar.helper.PatternBuilder;
 import org.traccar.model.Position;
+import org.traccar.session.DeviceSession;
 
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.regex.Pattern;
 
-public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
+public class PiligrimProtocolDecoder extends BaseHttpProtocolDecoder {
 
     public PiligrimProtocolDecoder(Protocol protocol) {
         super(protocol);
     }
 
     private void sendResponse(Channel channel, String message) {
-        if (channel != null) {
-            FullHttpResponse response = new DefaultFullHttpResponse(
-                    HttpVersion.HTTP_1_1, HttpResponseStatus.OK,
-                    Unpooled.copiedBuffer(message, StandardCharsets.US_ASCII));
-            channel.writeAndFlush(new NetworkMessage(response, channel.remoteAddress()));
-        }
+        sendResponse(channel, HttpResponseStatus.OK, Unpooled.copiedBuffer(message, StandardCharsets.US_ASCII));
     }
 
     public static final int MSG_GPS = 0xF1;
     public static final int MSG_GPS_SENSORS = 0xF2;
     public static final int MSG_EVENTS = 0xF3;
+
+    private static final Pattern PATTERN = new PatternBuilder()
+            .expression("[^$]+")
+            .text("$GPRMC,")
+            .number("(dd)(dd)(dd).d+,")          // time (hhmmss)
+            .expression("([AV]),")               // validity
+            .number("(dd)(dd.d+),")              // latitude
+            .expression("([NS]),")
+            .number("(d{2,3})(dd.d+),")          // longitude
+            .expression("([EW]),")
+            .number("(d+.d+),")                  // speed
+            .number("(d+.d+),")                  // course
+            .number("(dd)(dd)(dd),")             // date (ddmmyy)
+            .any()
+            .compile();
 
     @Override
     protected Object decode(
@@ -141,11 +150,11 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
                     if (type == MSG_GPS_SENSORS) {
                         double power = buf.readUnsignedByte();
                         power += buf.readUnsignedByte() << 8;
-                        position.set(Position.KEY_POWER, power * 0.01);
+                        position.set(Position.KEY_POWER, power / 100.0);
 
                         double battery = buf.readUnsignedByte();
                         battery += buf.readUnsignedByte() << 8;
-                        position.set(Position.KEY_BATTERY, battery * 0.01);
+                        position.set(Position.KEY_BATTERY, battery / 100.0);
 
                         buf.skipBytes(6);
                     }
@@ -159,6 +168,42 @@ public class PiligrimProtocolDecoder extends BaseProtocolDecoder {
             }
 
             return positions;
+
+        } else if (uri.startsWith("/push.do")) {
+
+            sendResponse(channel, "PUSH.DO: OK");
+
+            String sentence = request.content().toString(StandardCharsets.US_ASCII);
+
+            String[] parts = sentence.split("&");
+            String phone = parts[1].substring(16);
+            DeviceSession deviceSession = getDeviceSession(channel, remoteAddress, phone);
+            if (deviceSession == null) {
+                return null;
+            }
+
+            Parser parser = new Parser(PATTERN, parts[2]);
+            if (!parser.matches()) {
+                return null;
+            }
+
+            Position position = new Position(getProtocolName());
+            position.setDeviceId(deviceSession.getDeviceId());
+
+            DateBuilder dateBuilder = new DateBuilder()
+                    .setTime(parser.nextInt(), parser.nextInt(), parser.nextInt());
+
+            position.setValid(parser.next().equals("A"));
+            position.setLatitude(parser.nextCoordinate());
+            position.setLongitude(parser.nextCoordinate());
+            position.setSpeed(parser.nextDouble());
+            position.setCourse(parser.nextDouble());
+
+            dateBuilder.setDateReverse(parser.nextInt(), parser.nextInt(), parser.nextInt());
+            position.setTime(dateBuilder.getDate());
+
+            return position;
+
         }
 
         return null;

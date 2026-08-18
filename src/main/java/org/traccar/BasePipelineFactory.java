@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2019 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2024 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package org.traccar;
 
+import com.google.inject.Injector;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelInboundHandler;
@@ -22,71 +23,52 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOutboundHandler;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.timeout.IdleStateHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.traccar.config.Config;
 import org.traccar.config.Keys;
-import org.traccar.handler.DefaultDataHandler;
-import org.traccar.handler.events.AlertEventHandler;
-import org.traccar.handler.events.CommandResultEventHandler;
-import org.traccar.handler.events.DriverEventHandler;
-import org.traccar.handler.events.FuelDropEventHandler;
-import org.traccar.handler.events.GeofenceEventHandler;
-import org.traccar.handler.events.IgnitionEventHandler;
-import org.traccar.handler.events.MaintenanceEventHandler;
-import org.traccar.handler.events.MotionEventHandler;
-import org.traccar.handler.events.OverspeedEventHandler;
-import org.traccar.handler.ComputedAttributesHandler;
-import org.traccar.handler.CopyAttributesHandler;
-import org.traccar.handler.DistanceHandler;
-import org.traccar.handler.EngineHoursHandler;
-import org.traccar.handler.FilterHandler;
-import org.traccar.handler.GeocoderHandler;
-import org.traccar.handler.GeolocationHandler;
-import org.traccar.handler.HemisphereHandler;
-import org.traccar.handler.MotionHandler;
-import org.traccar.handler.NetworkMessageHandler;
-import org.traccar.handler.OpenChannelHandler;
-import org.traccar.handler.RemoteAddressHandler;
-import org.traccar.handler.StandardLoggingHandler;
+import org.traccar.handler.network.AcknowledgementHandler;
+import org.traccar.handler.network.MainEventHandler;
+import org.traccar.handler.network.NetworkForwarderHandler;
+import org.traccar.handler.network.NetworkMessageHandler;
+import org.traccar.handler.network.OpenChannelHandler;
+import org.traccar.handler.network.RemoteAddressHandler;
+import org.traccar.handler.network.StandardLoggingHandler;
 
 import java.util.Map;
 
 public abstract class BasePipelineFactory extends ChannelInitializer<Channel> {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(BasePipelineFactory.class);
+    private final Injector injector;
+    private final TrackerConnector connector;
+    private final Config config;
+    private final String protocol;
+    private final int timeout;
 
-    private final TrackerServer server;
-    private boolean eventsEnabled;
-    private int timeout;
-
-    public BasePipelineFactory(TrackerServer server, String protocol) {
-        this.server = server;
-        eventsEnabled = Context.getConfig().getBoolean(Keys.EVENT_ENABLE);
-        timeout = Context.getConfig().getInteger(Keys.PROTOCOL_TIMEOUT.withPrefix(protocol));
+    public BasePipelineFactory(TrackerConnector connector, Config config, String protocol) {
+        this.injector = Main.getInjector();
+        this.connector = connector;
+        this.config = config;
+        this.protocol = protocol;
+        int timeout = config.getInteger(Keys.PROTOCOL_TIMEOUT.withPrefix(protocol));
         if (timeout == 0) {
-            timeout = Context.getConfig().getInteger(Keys.SERVER_TIMEOUT);
+            this.timeout = config.getInteger(Keys.SERVER_TIMEOUT);
+        } else {
+            this.timeout = timeout;
         }
     }
+
+    protected abstract void addTransportHandlers(PipelineBuilder pipeline);
 
     protected abstract void addProtocolHandlers(PipelineBuilder pipeline);
 
-    @SafeVarargs
-    private final void addHandlers(ChannelPipeline pipeline, Class<? extends ChannelHandler>... handlerClasses) {
-        for (Class<? extends ChannelHandler> handlerClass : handlerClasses) {
-            if (handlerClass != null) {
-                pipeline.addLast(Main.getInjector().getInstance(handlerClass));
-            }
-        }
-    }
-
+    @SuppressWarnings("unchecked")
     public static <T extends ChannelHandler> T getHandler(ChannelPipeline pipeline, Class<T> clazz) {
         for (Map.Entry<String, ChannelHandler> handlerEntry : pipeline) {
             ChannelHandler handler = handlerEntry.getValue();
-            if (handler instanceof WrapperInboundHandler) {
-                handler = ((WrapperInboundHandler) handler).getWrappedHandler();
-            } else if (handler instanceof WrapperOutboundHandler) {
-                handler = ((WrapperOutboundHandler) handler).getWrappedHandler();
-            }
+            handler = switch (handler) {
+                case WrapperInboundHandler wrapperHandler -> wrapperHandler.getWrappedHandler();
+                case WrapperOutboundHandler wrapperHandler -> wrapperHandler.getWrappedHandler();
+                default -> handler;
+            };
             if (clazz.isAssignableFrom(handler.getClass())) {
                 return (T) handler;
             }
@@ -94,76 +76,48 @@ public abstract class BasePipelineFactory extends ChannelInitializer<Channel> {
         return null;
     }
 
+    private <T> T injectMembers(T object) {
+        injector.injectMembers(object);
+        return object;
+    }
+
     @Override
     protected void initChannel(Channel channel) {
         final ChannelPipeline pipeline = channel.pipeline();
 
-        if (timeout > 0 && !server.isDatagram()) {
+        addTransportHandlers(pipeline::addLast);
+
+        if (timeout > 0 && !connector.isDatagram()) {
             pipeline.addLast(new IdleStateHandler(timeout, 0, 0));
         }
-        pipeline.addLast(new OpenChannelHandler(server));
+        pipeline.addLast(new OpenChannelHandler(connector));
+        if (config.hasKey(Keys.SERVER_FORWARD)) {
+            int port = config.getInteger(Keys.PROTOCOL_PORT.withPrefix(protocol));
+            pipeline.addLast(injectMembers(new NetworkForwarderHandler(port)));
+        }
         pipeline.addLast(new NetworkMessageHandler());
-        pipeline.addLast(new StandardLoggingHandler());
+        pipeline.addLast(injectMembers(new StandardLoggingHandler(protocol)));
+
+        if (config.getBoolean(Keys.SERVER_DELAY_ACKNOWLEDGEMENT) && !connector.isDatagram()) {
+            pipeline.addLast(new AcknowledgementHandler());
+        }
 
         addProtocolHandlers(handler -> {
-            if (!(handler instanceof BaseProtocolDecoder || handler instanceof BaseProtocolEncoder)) {
-                if (handler instanceof ChannelInboundHandler) {
-                    handler = new WrapperInboundHandler((ChannelInboundHandler) handler);
-                } else {
-                    handler = new WrapperOutboundHandler((ChannelOutboundHandler) handler);
-                }
+            if (handler instanceof BaseProtocolDecoder || handler instanceof BaseProtocolEncoder) {
+                injectMembers(handler);
+            } else {
+                handler = switch (handler) {
+                    case ChannelInboundHandler channelHandler -> new WrapperInboundHandler(channelHandler);
+                    case ChannelOutboundHandler channelHandler -> new WrapperOutboundHandler(channelHandler);
+                    default -> handler;
+                };
             }
             pipeline.addLast(handler);
         });
 
-        addHandlers(
-                pipeline,
-                GeolocationHandler.class,
-                HemisphereHandler.class,
-                DistanceHandler.class,
-                RemoteAddressHandler.class);
-
-        addDynamicHandlers(pipeline);
-
-        addHandlers(
-                pipeline,
-                FilterHandler.class,
-                GeocoderHandler.class,
-                MotionHandler.class,
-                EngineHoursHandler.class,
-                CopyAttributesHandler.class,
-                ComputedAttributesHandler.class,
-                WebDataHandler.class,
-                DefaultDataHandler.class);
-
-        if (eventsEnabled) {
-            addHandlers(
-                    pipeline,
-                    CommandResultEventHandler.class,
-                    OverspeedEventHandler.class,
-                    FuelDropEventHandler.class,
-                    MotionEventHandler.class,
-                    GeofenceEventHandler.class,
-                    AlertEventHandler.class,
-                    IgnitionEventHandler.class,
-                    MaintenanceEventHandler.class,
-                    DriverEventHandler.class);
-        }
-
-        pipeline.addLast(new MainEventHandler());
-    }
-
-    private void addDynamicHandlers(ChannelPipeline pipeline) {
-        String handlers = Context.getConfig().getString(Keys.EXTRA_HANDLERS);
-        if (handlers != null) {
-            for (String handler : handlers.split(",")) {
-                try {
-                    pipeline.addLast((ChannelHandler) Class.forName(handler).getDeclaredConstructor().newInstance());
-                } catch (ReflectiveOperationException error) {
-                    LOGGER.warn("Dynamic handler error", error);
-                }
-            }
-        }
+        pipeline.addLast(injector.getInstance(RemoteAddressHandler.class));
+        pipeline.addLast(injector.getInstance(ProcessingHandler.class));
+        pipeline.addLast(injector.getInstance(MainEventHandler.class));
     }
 
 }

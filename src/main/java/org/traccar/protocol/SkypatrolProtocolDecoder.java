@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 - 2018 Anton Tananaev (anton@traccar.org)
+ * Copyright 2012 - 2020 Anton Tananaev (anton@traccar.org)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ import io.netty.channel.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traccar.BaseProtocolDecoder;
-import org.traccar.Context;
-import org.traccar.DeviceSession;
+import org.traccar.session.DeviceSession;
 import org.traccar.Protocol;
+import org.traccar.config.Keys;
 import org.traccar.helper.BitUtil;
 import org.traccar.helper.DateBuilder;
 import org.traccar.model.Position;
@@ -34,11 +34,15 @@ public class SkypatrolProtocolDecoder extends BaseProtocolDecoder {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SkypatrolProtocolDecoder.class);
 
-    private final long defaultMask;
+    private long defaultMask;
 
     public SkypatrolProtocolDecoder(Protocol protocol) {
         super(protocol);
-        defaultMask = Context.getConfig().getInteger(getProtocolName() + ".mask");
+    }
+
+    @Override
+    protected void init() {
+        defaultMask = getConfig().getInteger(Keys.PROTOCOL_MASK.withPrefix(getProtocolName()));
     }
 
     private static double convertCoordinate(long coordinate) {
@@ -169,7 +173,7 @@ public class SkypatrolProtocolDecoder extends BaseProtocolDecoder {
             }
 
             if (BitUtil.check(mask, 24)) {
-                position.set(Position.KEY_POWER, buf.readUnsignedShort() * 0.001);
+                position.set(Position.KEY_POWER, buf.readUnsignedShort() / 1000.0);
             }
 
             if (BitUtil.check(mask, 25)) {
